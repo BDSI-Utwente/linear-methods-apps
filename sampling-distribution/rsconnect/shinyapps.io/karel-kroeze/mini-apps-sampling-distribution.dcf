@@ -1,0 +1,13 @@
+name: mini-apps-sampling-distribution
+title: mini-apps-sampling-distribution
+username:
+account: karel-kroeze
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4351922
+bundleId: 4787666
+url: https://karel-kroeze.shinyapps.io/mini-apps-sampling-distribution/
+when: 1625474660.1819
+lastSyncTime: 1625474660.1819
+asMultiple: FALSE
+asStatic: FALSE
