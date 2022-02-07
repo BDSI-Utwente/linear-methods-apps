@@ -23,7 +23,8 @@ ui <- miniPage(
             background-color: #e2e2e2;
         }"
     ),
-    # tags$script(src="https://kit.fontawesome.com/3910aff050.js"),
+    # TODO: figure out why I need to reference font awesome manually
+    tags$script(src="https://kit.fontawesome.com/3910aff050.js"),
     miniTabstripPanel(
     miniTabPanel(
         "Population",
