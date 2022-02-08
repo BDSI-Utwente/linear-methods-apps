@@ -2,7 +2,9 @@ library(shiny)
 library(miniUI)
 library(tidyverse)
 library(glue)
+library(Cairo)
 
+options(shiny.usecairo = TRUE)
 options(shiny.autoreload = TRUE)
 
 PRECISION <- 0.05
@@ -15,26 +17,26 @@ RANGE <- c(-4, 4)
 pad <- function(text, char = " ", count = 1) {
     paste0(paste0(rep(char, count), collapse = ""), text, paste0(rep(char, count), collapse = ""))
 }
+label_p_value_html <- function(z) {
+    glue("\\(P(Z {ifelse(z <= 0, '\\\\leq', '\\\\geq')} {round(z, 2)}) = {ifelse(z <= 0, pnorm(z), 1 - pnorm(z)) %>% abs() %>% round(3)}\\)")
+}
 label_p_value <- function(z) {
-    glue(
-        "P(Z {ifelse(z <= 0, '\\\\leq', '\\\\geq')} {round(z, 2)}) = {ifelse(z <= 0, pnorm(z), 1 - pnorm(z)) %>% abs() %>% round(3)}"
-    )
+    glue("P(Z {ifelse(z <= 0, '<=', '>=')} {round(z, 2)}) == {ifelse(z <= 0, pnorm(z), 1 - pnorm(z)) %>% abs() %>% round(3)}")
 }
 
-ui <-
-    miniPage(
+ui <- miniPage(
         withMathJax(),
         miniContentPanel(plotOutput("distribution", height = "100%")),
         miniButtonBlock(
             style = "justify-content: space-around; gap: 1em; padding: .5em;",
-            sliderInput("alpha", "Type-I error, \\(\\alpha\\)", 0.01, 0.2, 0.05, 0.01),
-            htmlOutput("critical_values"),
+            sliderInput("alpha", "Type I error, \\(\\alpha\\)", 0.01, 0.2, 0.05, 0.01),
+            # htmlOutput("critical_values"),
             div(
-                numericInput("z_value", "Z value", STARTING_Z_VALUE, -4, 4, 0.01),
-                actionButton("z_to_p", "Calculate \\(P(Z \\geq z)\\)", class = "btn-primary")
+                numericInput("z_value", "\\(z\\)-value", STARTING_Z_VALUE, -4, 4, 0.01),
+                actionButton("z_to_p", "Calculate \\(P(Z \\geq |z|)\\)", class = "btn-primary")
             ),
             div(
-                numericInput("p_value", "P value", STARTING_P_VALUE, 0, 1, 0.01),
+                numericInput("p_value", "\\(p\\)-value", STARTING_P_VALUE, 0, 1, 0.01),
                 actionButton("p_to_z", "Calculate Z value", class = "btn-primary")
             )
         )
@@ -55,7 +57,7 @@ server <- function(input, output, session) {
 
     labels <- reactive(tibble(
         z = c(crit_lower(), crit_upper()),
-        label_quantile = glue("z = {round(z, 2)}"),
+        label_quantile = glue("z == {round(z, 2)}"),
         label_percent = label_p_value(z)
     ))
 
@@ -81,7 +83,7 @@ server <- function(input, output, session) {
         tagList(
             tags$label("Critical values"),
             withMathJax(),
-            labels() %>% glue_data("\\({label_percent}\\)") %>% map(p)
+            labels() %>% pull(z) %>% label_p_value_html() %>% map(p)
         )
     })
 
@@ -91,32 +93,38 @@ server <- function(input, output, session) {
             geom_area(aes(fill = z >= crit_upper())) +
             geom_vline(
                 xintercept = c(crit_lower(), crit_upper()),
-                linetype = 2,
-                size = 1,
-                colour = "#428BCA"
+                linetype = 5,
+                size = .6,
+                colour = "#226BAA"
             ) +
             geom_text(
-                aes(z, label = label_quantile %>% pad()),
+                aes(z, label = label_quantile),
                 data = labels(),
                 y = 0,
                 hjust = "outward",
                 vjust = "outward",
-                size = 6
+                nudge_x = c(-.05, 0.05),
+                # colour = "#428BCA",
+                size = 5,
+                parse = TRUE
             ) +
             geom_text(
-                aes(z, label = label_percent %>% pad()),
+                aes(z, label = label_percent),
                 data = labels(),
                 y = max(data()$d),
                 hjust = "outward",
                 vjust = "inward",
-                size = 6
+                nudge_x = c(-.05, 0.05),
+                # colour = "#428BCA",
+                size = 5,
+                parse = TRUE
             ) +
-            geom_line(size = .7) +
+            geom_line(size = .5) +
             # geom_text(aes())
             scale_fill_discrete(guide = "none",
                                 type = c("#428BCA33", "#428BCA99"))
 
-        if (drawValue() || TRUE) {
+        if (drawValue()) {
             plot <- plot +
                 geom_vline(
                     xintercept = zValue(),
@@ -125,15 +133,16 @@ server <- function(input, output, session) {
                     colour = "maroon"
                 ) +
                 geom_text(
-                    aes(z, label = label %>% pad()),
+                    aes(z, label = label),
                     y = max(data()$d) * .95,
                     data = tibble(z = zValue(), label = label_p_value(z)),
                     hjust = "outward",
                     vjust = "inward",
+                    nudge_x = .03,
                     size = 6,
-                    colour = "black"
+                    colour = "black",
+                    parse = TRUE
                 )
-            print(label_p_value(zValue()))
         }
         plot
     })

@@ -5,6 +5,7 @@ library(lme4)
 library(modelr) # get residuals
 # library(performance) # compute ICC
 library(insight) # getting variance components
+library(Cairo)
 
 INTERCEPT <- 100
 SEED <- 1234
@@ -12,20 +13,31 @@ SEED <- 1234
 options(shiny.autoreload = TRUE)
 
 ui <- miniPage(
+    title = "intra class correlation",
     miniContentPanel(fillRow(
         plotOutput("naive", height = "100%"),
         plotOutput("corrected", height = "100%")
     )),
     miniButtonBlock(
-        style = "display: flex; justify-content: space-around; gap: 1em;",
-        sliderInput("n", "Respondents", 10, 20, 10, 1),
-        sliderInput("p", "Measurements", 2, 20, 10, 1),
-        sliderInput("icc", "Intra class correlation", 0.05, 0.95, 0.1, 0.05),
-        sliderInput("var", "Random variance", 0.01, 20, 10, 0.01)
+        style = "display: flex; justify-content: space-around; gap: 1em; padding: .5em;",
+        conditionalPanel(
+            "output.mode=='full'",
+            sliderInput("n", "Respondents", 10, 20, 10, 1)
+        ),
+        conditionalPanel(
+            "output.mode=='full'",
+            sliderInput("p", "Measurements", 2, 20, 15, 1)
+        ),
+        conditionalPanel(
+            "output.mode=='full'",
+            sliderInput("var", "Random variance", 0.01, 20, 10, 0.01)
+        ),
+        sliderInput("icc", "Intra class correlation", 0.05, 0.99, 0.1, 0.05)
     )
 )
 
 server <- function(input, output) {
+    model <- reactiveVal()
     data <- reactive({
         set.seed(SEED)
         patient <- rep(1:input$n, input$p) %>% factor()
@@ -38,16 +50,14 @@ server <- function(input, output) {
                    INTERCEPT + rep(patient_effect, input$p),
                    sqrt(var_resid))
 
-        tibble(patient, measure, y)
+        df <- tibble(patient, measure, y, resid_naive = y - mean(y))
+        model(lmer(y ~ (1 | patient), REML = FALSE, data = df))
+        df %>% add_residuals(model(), "resid_random")
     })
 
-    model <- reactive(lmer(
-        y ~ measure + (1 | patient),
-        REML = TRUE,
-        data = data()
-    ))
-
     observe({
+        if (is.null(model()))
+            return()
         cat(
             "\nRespondents:",
             input$n,
@@ -60,15 +70,28 @@ server <- function(input, output) {
                 get_variance_random(model()) + get_variance_residual(model())
             )
         )
-    })
+    }) %>% bindEvent(model())
 
     output$naive <- renderPlot({
-        data() %>% ggplot(aes(patient, y)) + geom_boxplot()
-    }) %>% bindCache(input$n, input$p, input$icc, input$var)
+        data() %>% ggplot(aes(patient, resid_naive)) +
+            geom_boxplot() +
+            labs(y = "Residual", title = "Residuals without random intercept") +
+            coord_cartesian(ylim = data() %>% select(starts_with("resid")) %>% range())
+    }) %>% bindCache(model()) %>% bindEvent(model(), data())
 
     output$corrected <- renderPlot({
-        data() %>% add_residuals(model()) %>% ggplot(aes(patient, resid)) + geom_boxplot() + labs(y = "Residual")
-    }) %>% bindCache(input$n, input$p, input$icc, input$var)
+        data() %>% ggplot(aes(patient, resid_random)) +
+            geom_boxplot() +
+            labs(y = "Residual", title = "Residuals with random intercept") +
+            coord_cartesian(ylim = data() %>% select(starts_with("resid")) %>% range())
+    }) %>% bindCache(model())
+
+    output$mode <- reactive({
+        qs <- getQueryString()
+        ifelse(is.null(qs$mode), "full", qs$mode)
+    })
+
+    outputOptions(output, "mode", suspendWhenHidden = FALSE)
 }
 
 shinyApp(ui = ui, server = server)
