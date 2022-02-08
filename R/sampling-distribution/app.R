@@ -1,19 +1,9 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
-
 library(shiny)
 library(miniUI)
 library(tidyverse)
 
 options(shiny.autoreload = TRUE)
 
-# Define UI for application that draws a histogram
 ui <- miniPage(
     tags$style("
         .gadget-tabs-container {
@@ -53,7 +43,6 @@ ui <- miniPage(
             )
         )
     ),
-    # miniTabPanel("Samples"),
     miniTabPanel(
         "Sampling distribution",
         icon = icon("users"),
@@ -64,11 +53,9 @@ ui <- miniPage(
             sliderInput("sample_count", "Number of samples", 1, 1000, 50),
             radioButtons("param", "Parameter", c(Mean = "mean", SD = "sd"), inline = TRUE)
         )
-    ),
-    id = "page"
+    )
 ))
 
-# Define server logic required to draw a histogram
 server <- function(input, output) {
     population <- reactive(if (input$dist == "normal") {
         return(tibble(x = rnorm(5000, input$mean, input$sd)))
