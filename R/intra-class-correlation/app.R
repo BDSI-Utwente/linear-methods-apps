@@ -13,11 +13,27 @@ SEED <- 1234
 options(shiny.autoreload = TRUE)
 
 ui <- miniPage(
+    theme = bslib::bs_theme(version = 4),
     title = "intra class correlation",
-    miniContentPanel(fillRow(
-        plotOutput("naive", height = "100%"),
-        plotOutput("corrected", height = "100%")
-    )),
+    miniContentPanel(
+        conditionalPanel(
+            "output.help",
+            class = "alert alert-info p-1 rounded d-flex align-items-center",
+            icon("warning", class = "h3 mx-3"),
+            p(
+                class = "mb-0",
+                "This app has a light and a full mode, which can be selected by appending",
+                code("?mode=light"),
+                "or",
+                code("?mode=full"),
+                "to the url. You are currently viewing the full mode. Choosing a mode will suppress this message."
+            )
+        ),
+        fillRow(
+            plotOutput("naive", height = "100%"),
+            plotOutput("corrected", height = "100%")
+        )
+    ),
     miniButtonBlock(
         style = "display: flex; justify-content: space-around; gap: 1em; padding: .5em;",
         conditionalPanel(
@@ -91,7 +107,13 @@ server <- function(input, output) {
         ifelse(is.null(qs$mode), "full", qs$mode)
     })
 
+    output$help <- reactive({
+        qs <- getQueryString()
+        is.null(qs$mode)
+    })
+
     outputOptions(output, "mode", suspendWhenHidden = FALSE)
+    outputOptions(output, "help", suspendWhenHidden = FALSE)
 }
 
 shinyApp(ui = ui, server = server)
