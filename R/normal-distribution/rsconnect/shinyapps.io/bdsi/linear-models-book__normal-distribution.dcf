@@ -5,9 +5,9 @@ account: bdsi
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 5015545
-bundleId: 5198350
+bundleId: 5846519
 url: https://bdsi.shinyapps.io/linear-models-book__normal-distribution/
-when: 1635774583.44024
-lastSyncTime: 1635774583.44024
+when: 1651142751.5208
+lastSyncTime: 1651142751.5208
 asMultiple: FALSE
 asStatic: FALSE

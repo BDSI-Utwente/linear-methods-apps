@@ -1,0 +1,14 @@
+name: linear-models-book__intra-class-correlation
+title: linear-models-book__intra-class-correlation
+username:
+account: bdsi
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 6191331
+bundleId: 5846510
+url: https://bdsi.shinyapps.io/linear-models-book__intra-class-correlation/
+when: 1651142425.65404
+lastSyncTime: 1651142425.65404
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: icc.R

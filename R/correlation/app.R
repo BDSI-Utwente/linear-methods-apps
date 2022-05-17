@@ -8,7 +8,7 @@ require(plotly)
 
 INITIAL_R = .5
 NUM_OBSERVATIONS = 300
-SEED = 1234
+SEED = 1234444
 LIMITS = c(-4, 4)
 
 # based on https://stats.stackexchange.com/questions/522454/how-to-construct-simulate-data-that-will-have-a-given-coefficient-of-determina/522470#522470

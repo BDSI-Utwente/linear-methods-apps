@@ -47,7 +47,8 @@ server <- function(input, output, session) {
     output$distPlot <- renderPlot({
         ggplot(data(), aes(x, dx)) +
             geom_line() +
-            coord_cartesian(ylim = c(0, max(data()$dx, .4)))
+            coord_cartesian(ylim = c(0, max(data()$dx, .4))) +
+            labs(y = "density")
     }) %>% bindCache(input$mean, input$sd)
 }
 
