@@ -16,15 +16,16 @@ STARTING_T_VALUE <- 2.25
 STARTING_DF <- 2
 STARTING_P_VALUE <-
   pt(STARTING_T_VALUE / 2, STARTING_DF, lower.tail = STARTING_T_VALUE <= 0) %>% round(3)
+
 RANGE <- c(-4, 4) # range for T value
 
-label_p_value_html <- function(t, df) {
+label_t_value_html <- function(t, df) {
   glue(
     "\\(P(T {ifelse(t <= 0, '\\\\leq', '\\\\geq')} {round(t, 2)}) = {ifelse(t <= 0, pt(t, df), 1 - pt(t, df)) %>% abs() %>% round(3)}\\)"
   )
 }
 
-label_p_value <- function(t, df) {
+label_t_value <- function(t, df) {
   glue(
     "P(T {ifelse(t <= 0, '<=', '>=')} {round(t, 2)}) == {ifelse(t <= 0, pt(t, df), 1 - pt(t, df)) %>% abs() %>% round(3)}"
   )
@@ -42,7 +43,7 @@ ui <- miniPage(
       div(
         class = "alert alert-info p-1 rounded d-flex align-items-center",
         icon("warning", class = "h3 mx-3", verify_fa = FALSE),
-        
+
         p(
           class = "mb-0",
           "This app has three modes: critical values, p-values, and combined. You can select the mode by adding",
@@ -65,7 +66,7 @@ ui <- miniPage(
        div(
          id = "critical-value-panel",
          class = "d-flex flex-column",
-         
+
          div(# set alpha
           class = "d-flex",
           sliderInput("alpha", "Type I error, \\(\\alpha\\)", 0.01, 0.2, 0.05, 0.01)
@@ -74,22 +75,25 @@ ui <- miniPage(
           class = "align-items-center",
           sliderInput(inputId = "df",
                       label = "Degrees of Freedom", min = 1, max = 200, value = 1, step = 1)
-                     
-          # numericInput(inputId = "df", label = "Degrees of Freedom", STARTING_DF, 
+
+          # numericInput(inputId = "df", label = "Degrees of Freedom", STARTING_DF,
           #              min = 1, max = 200, value = 1, step = 1
           #              )
           ),
+         div(# critical values readout
+           htmlOutput("critical_values")
+         )
       ),
     ),
-    
-    conditionalPanel( 
+
+    conditionalPanel(
       "output.mode == 'combined' || output.mode == 'p_values'",
       div( # set t value
         id = "p-value-panel",
         class = "d-flex",
         div(
           class = "d-flex align-items-center",
-          numericInput("t_value", "\\(t\\)-value", STARTING_T_VALUE, -4, 4, 0.01), 
+          numericInput("t_value", "\\(t\\)-value", STARTING_T_VALUE, -4, 4, 0.01),
           actionButton(
             "t_to_p",
             "Calculate \\(p\\)-value",
@@ -99,7 +103,7 @@ ui <- miniPage(
         ),
         div( # calculate p_value
           class = "d-flex align-items-center",
-          numericInput("p_value", "\\(p\\)-value", STARTING_P_VALUE, 0, 1, 0.01), 
+          numericInput("p_value", "\\(p\\)-value", STARTING_P_VALUE, 0, 1, 0.01),
           actionButton(
             "p_to_t",
             "Calculate \\(t\\)-value",
@@ -118,18 +122,18 @@ server <- function(input, output, session) {
   crit_upper <- reactive(qt(1 - input$alpha / 2, input$df)) # find upper critical value
   data <- reactive(tibble(
     t = c(
-      seq(RANGE[1], RANGE[2], PRECISION), 
+      seq(RANGE[1], RANGE[2], PRECISION),
       crit_lower() + EXTRA_POINTS_AROUND_CRITICAL_VALUES,
       crit_upper() + EXTRA_POINTS_AROUND_CRITICAL_VALUES,
       t_lower() + EXTRA_POINTS_AROUND_CRITICAL_VALUES,
       t_upper() + EXTRA_POINTS_AROUND_CRITICAL_VALUES
     ),
-    fill_critical = ifelse(abs(t) >= crit_upper(), "#428BCA99", "transparent"), 
+    fill_critical = ifelse(abs(t) >= crit_upper(), "#428BCA99", "transparent"),
     fill_p = ifelse(abs(t) >= t_upper(), "#B0306033", "transparent"),
     d = dt(t, input$df),
     p = pt(t, input$df),
   ))
-  
+
   mode <- reactive({ # default mode is combined
     mode <- getQueryString()$mode
     if (is.null(mode))
@@ -137,58 +141,58 @@ server <- function(input, output, session) {
     mode
   })
   output$mode <- reactive(mode())
-  
+
   help <- reactive(is.null(getQueryString()$mode))
   output$help <- reactive(help())
   output$css <- renderUI({
     tags$style(HTML("#p-value-panel {", htmltools::css( flex.direction = ifelse( mode() == "combined", "column", "row" ))), "}")
   })
-  
+
   labels <- reactive(tibble(
     t = c(crit_lower(), crit_upper()),
     d = dt(t, input$df),
     label_quantile = glue("t == {round(t, 2)}"),
     df = input$df,
-    label_percent = label_p_value(t, input$df)
+    label_percent = label_t_value(t, input$df)
   ))
-  
-  
+
+
   drawValue <- reactiveVal(FALSE)
   tValue <- reactiveVal(STARTING_T_VALUE)
   t_lower <- reactive(-abs(tValue()))
   t_upper <- reactive(abs(tValue()))
   pValue <- reactiveVal(STARTING_T_VALUE)
-  
+
   ## Calculate p-value based on t: take t_value from input, calculate p-value using pt()
   onCalculatePValue <- observe({
-    tValue(input$t_value) # take z from input
+    tValue(input$t_value) # taketz from input
     pValue((pt(
       input$t_value, input$df, lower.tail = input$t_value <= 0
     ) * 2) %>% round(3))
     drawValue(TRUE)
     updateNumericInput(session, "p_value", value = pValue())
-  }) %>% bindEvent(input$t_to_p) 
-  
+  }) %>% bindEvent(input$t_to_p)
+
   ## Calculate t-value based on p: take p_value from input, calculate t-value using qt()
   onCalculatetValue <- observe({
     pValue(input$p_value)
     tValue(qt(input$p_value / 2, input$df, lower.tail = input$t_value <= 0) %>% round(3))
     drawValue(TRUE)
     updateNumericInput(session, "t_value", value = tValue())
-  }) %>% bindEvent(input$p_to_t) 
-  
+  }) %>% bindEvent(input$p_to_t)
+
   output$critical_values <- renderPrint({
     tagList(
       tags$label("Critical values"),
       withMathJax(),
-      labels() %>% pull(t, df) %>% label_p_value_html() %>% map(p)
+      labels() %>% select(t, df) %>% purrr::pmap(label_p_value_html) %>% map(p)
     )
   })
-  
+
   ## PLOT ---------------------------------------------------------
   output$distribution <- renderPlot({
     plot <- data() %>% ggplot(aes(t, d))
-    
+
     if (mode() == "critical_values" ||
         (mode() == "combined" && !drawValue())) {
       plot <- plot +
@@ -228,11 +232,11 @@ server <- function(input, output, session) {
         parse = TRUE
       )
     }
-    
+
     plot <- plot +
       geom_line(size = .5)
     # geom_text(aes())
-    
+
     if (drawValue()) {
       plot <- plot +
         geom_area(aes(fill = t <= t_lower())) +
@@ -251,7 +255,7 @@ server <- function(input, output, session) {
           data = tibble(
             t = c(t_lower(), t_upper()),
             d = dt(t, input$df),
-            label = label_p_value(t, input$df)
+            label = label_t_value(t, input$df)
           ),
           hjust = "outward",
           vjust = "inward",
@@ -262,9 +266,9 @@ server <- function(input, output, session) {
     }
     plot
   })
-  
+
   outputOptions(output, "mode", suspendWhenHidden = FALSE)
   outputOptions(output, "help", suspendWhenHidden = FALSE)
 }
 
-shiny::shinyApp(ui, server)
+shiny::shinyApp(ui, server) %>% shiny::runApp()
