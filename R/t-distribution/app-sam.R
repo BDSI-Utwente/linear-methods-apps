@@ -19,13 +19,13 @@ STARTING_P_VALUE <-
 
 RANGE <- c(-4, 4) # range for T value
 
-label_t_value_html <- function(t, df) {
+label_p_value_html <- function(t, df) {
   glue(
     "\\(P(T {ifelse(t <= 0, '\\\\leq', '\\\\geq')} {round(t, 2)}) = {ifelse(t <= 0, pt(t, df), 1 - pt(t, df)) %>% abs() %>% round(3)}\\)"
   )
 }
 
-label_t_value <- function(t, df) {
+label_p_value <- function(t, df) {
   glue(
     "P(T {ifelse(t <= 0, '<=', '>=')} {round(t, 2)}) == {ifelse(t <= 0, pt(t, df), 1 - pt(t, df)) %>% abs() %>% round(3)}"
   )
