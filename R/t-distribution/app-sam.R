@@ -1,5 +1,5 @@
 # App: t_distribution
-# Last update: 15 May 22
+# Last update: 24 May 22
 
 library(shiny)
 library(miniUI)
@@ -16,6 +16,10 @@ STARTING_T_VALUE <- 2.25
 STARTING_DF <- 2
 STARTING_P_VALUE <-
   pt(STARTING_T_VALUE / 2, STARTING_DF, lower.tail = STARTING_T_VALUE <= 0) %>% round(3)
+
+STARTING_Z_VALUE <- 2.25
+STARTING_P_VALUE <-
+  pnorm(STARTING_Z_VALUE / 2, lower.tail = STARTING_Z_VALUE <= 0) %>% round(3)
 
 RANGE <- c(-4, 4) # range for T value
 
@@ -71,19 +75,16 @@ ui <- miniPage(
           class = "d-flex",
           sliderInput("alpha", "Type I error, \\(\\alpha\\)", 0.01, 0.2, 0.05, 0.01)
           ),
-         div(# degree of freedom
-          class = "align-items-center",
-          sliderInput(inputId = "df",
-                      label = "Degrees of Freedom", min = 1, max = 200, value = 1, step = 1)
-
-          # numericInput(inputId = "df", label = "Degrees of Freedom", STARTING_DF,
-          #              min = 1, max = 200, value = 1, step = 1
-          #              )
-          ),
          div(# critical values readout
            htmlOutput("critical_values")
          )
       ),
+    ),
+    
+    div(# degree of freedom for all modes
+      class = "align-items-center",
+      sliderInput(inputId = "df",
+                  label = "Degrees of Freedom", min = 1, max = 200, value = 1, step = 1)
     ),
 
     conditionalPanel(
@@ -112,7 +113,15 @@ ui <- miniPage(
           )
         )
       )
-    )
+    ),
+   ),
+  
+  div(## Update: Section to display normal distribution
+    class = "d-flex flex-column",
+    checkboxInput(inputId = "norm_dist",
+                  label = strong("Show standard normal distribution"),
+                  value = FALSE)
+    
   )
 )
 
@@ -120,9 +129,14 @@ ui <- miniPage(
 server <- function(input, output, session) {
   crit_lower <- reactive(qt(input$alpha / 2, input$df)) # find lower critical value
   crit_upper <- reactive(qt(1 - input$alpha / 2, input$df)) # find upper critical value
+  
+  ## Update: Change range factor dynamically.
+  range_factor <- reactive(0.2/input$alpha)
+  RANGE_new <- reactive(RANGE * range_factor())
+  
   data <- reactive(tibble(
     t = c(
-      seq(RANGE[1], RANGE[2], PRECISION),
+      seq(RANGE_new()[1], RANGE_new()[2], PRECISION),
       crit_lower() + EXTRA_POINTS_AROUND_CRITICAL_VALUES,
       crit_upper() + EXTRA_POINTS_AROUND_CRITICAL_VALUES,
       t_lower() + EXTRA_POINTS_AROUND_CRITICAL_VALUES,
@@ -133,6 +147,28 @@ server <- function(input, output, session) {
     d = dt(t, input$df),
     p = pt(t, input$df),
   ))
+  
+  ## Update: Data input for z_norm  
+  data_norm <- reactive(tibble(
+    z = c(
+      seq(RANGE[1], RANGE[2], PRECISION), # creat a sequence from -4 to 4, increments = precision = 0.05
+      crit_lower() + EXTRA_POINTS_AROUND_CRITICAL_VALUES,
+      crit_upper() + EXTRA_POINTS_AROUND_CRITICAL_VALUES,
+      z_lower() + EXTRA_POINTS_AROUND_CRITICAL_VALUES,
+      z_upper() + EXTRA_POINTS_AROUND_CRITICAL_VALUES
+    ),
+    fill_critical = ifelse(abs(z) >= crit_upper(), "#428BCA99", "transparent"), # set color for critical and for z
+    fill_p = ifelse(abs(z) >= z_upper(), "#B0306033", "transparent"),
+    d_norm = dnorm(z),
+    p_norm = pnorm(z)
+  ))
+  
+  ## Update: drawValues based on the initial setting (normal distribution)
+  drawValue <- reactiveVal(FALSE)
+  zValue <- reactiveVal(STARTING_Z_VALUE)
+  z_lower <- reactive(-abs(zValue()))
+  z_upper <- reactive(abs(zValue()))
+  pValue <- reactiveVal(STARTING_P_VALUE)
 
   mode <- reactive({ # default mode is combined
     mode <- getQueryString()$mode
@@ -153,9 +189,8 @@ server <- function(input, output, session) {
     d = dt(t, input$df),
     label_quantile = glue("t == {round(t, 2)}"),
     df = input$df,
-    label_percent = label_t_value(t, input$df)
+    label_percent = label_p_value(t, input$df)
   ))
-
 
   drawValue <- reactiveVal(FALSE)
   tValue <- reactiveVal(STARTING_T_VALUE)
@@ -165,7 +200,7 @@ server <- function(input, output, session) {
 
   ## Calculate p-value based on t: take t_value from input, calculate p-value using pt()
   onCalculatePValue <- observe({
-    tValue(input$t_value) # taketz from input
+    tValue(input$t_value) # take t from input
     pValue((pt(
       input$t_value, input$df, lower.tail = input$t_value <= 0
     ) * 2) %>% round(3))
@@ -191,7 +226,14 @@ server <- function(input, output, session) {
 
   ## PLOT ---------------------------------------------------------
   output$distribution <- renderPlot({
-    plot <- data() %>% ggplot(aes(t, d))
+    plot <- data() %>% ggplot(aes(t, d), ylim = c(0,.4)) ## Update: Adding ylim to fix y-axis
+    
+    ## Update: Adjust option show normal distribution curve -------
+    norm_dist <- reactive(input$norm_dist) # Get value from the input check box
+    if (norm_dist()==TRUE)
+      plot <- plot + 
+        geom_line(data = data_norm(), mapping = aes(x = z, y = d_norm), colour = "#214a2c") + 
+        geom_area(data = data_norm(), mapping = aes(x = z, y = d_norm), fill = "#c5e186") 
 
     if (mode() == "critical_values" ||
         (mode() == "combined" && !drawValue())) {
@@ -209,18 +251,7 @@ server <- function(input, output, session) {
           size = .6,
           colour = "#226BAA"
         ) +
-        # geom_text(
-        #     aes(z, label = label_quantile),
-        #     data = labels(),
-        #     y = 0,
-        #     hjust = "outward",
-        #     vjust = "outward",
-        #     nudge_x = c(-.05, 0.05),
-        #     # colour = "#428BCA",
-        #     size = 5,
-        #     parse = TRUE
-        # ) +
-      geom_text(
+    geom_text(
         aes(t, d, label = label_percent),
         data = labels(),
         # y = max(data()$d),
@@ -255,7 +286,7 @@ server <- function(input, output, session) {
           data = tibble(
             t = c(t_lower(), t_upper()),
             d = dt(t, input$df),
-            label = label_t_value(t, input$df)
+            label = label_p_value(t, input$df)
           ),
           hjust = "outward",
           vjust = "inward",
