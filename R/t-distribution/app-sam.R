@@ -75,11 +75,16 @@ ui <- miniPage(
           class = "d-flex",
           sliderInput("alpha", "Type I error, \\(\\alpha\\)", 0.01, 0.2, 0.05, 0.01)
           ),
-
          div(# critical values readout
            htmlOutput("critical_values")
          )
       ),
+    ),
+
+    div(# degree of freedom for all modes
+      class = "align-items-center",
+      sliderInput(inputId = "df",
+                  label = "Degrees of Freedom", min = 1, max = 200, value = 1, step = 1)
     ),
 
     div(# degree of freedom for all modes
@@ -114,8 +119,9 @@ ui <- miniPage(
           )
         )
       )
-    )
-  ),
+    ),
+   ),
+
   div(## Update: Section to display normal distribution
     class = "d-flex flex-column",
     checkboxInput(inputId = "norm_dist",
@@ -170,6 +176,28 @@ server <- function(input, output, session) {
   z_upper <- reactive(abs(zValue()))
   pValue <- reactiveVal(STARTING_P_VALUE)
 
+  ## Update: Data input for z_norm
+  data_norm <- reactive(tibble(
+    z = c(
+      seq(RANGE[1], RANGE[2], PRECISION), # creat a sequence from -4 to 4, increments = precision = 0.05
+      crit_lower() + EXTRA_POINTS_AROUND_CRITICAL_VALUES,
+      crit_upper() + EXTRA_POINTS_AROUND_CRITICAL_VALUES,
+      z_lower() + EXTRA_POINTS_AROUND_CRITICAL_VALUES,
+      z_upper() + EXTRA_POINTS_AROUND_CRITICAL_VALUES
+    ),
+    fill_critical = ifelse(abs(z) >= crit_upper(), "#428BCA99", "transparent"), # set color for critical and for z
+    fill_p = ifelse(abs(z) >= z_upper(), "#B0306033", "transparent"),
+    d_norm = dnorm(z),
+    p_norm = pnorm(z)
+  ))
+
+  ## Update: drawValues based on the initial setting (normal distribution)
+  drawValue <- reactiveVal(FALSE)
+  zValue <- reactiveVal(STARTING_Z_VALUE)
+  z_lower <- reactive(-abs(zValue()))
+  z_upper <- reactive(abs(zValue()))
+  pValue <- reactiveVal(STARTING_P_VALUE)
+
   mode <- reactive({ # default mode is combined
     mode <- getQueryString()$mode
     if (is.null(mode))
@@ -192,7 +220,6 @@ server <- function(input, output, session) {
     label_percent = label_p_value(t, input$df)
   ))
 
-
   drawValue <- reactiveVal(FALSE)
   tValue <- reactiveVal(STARTING_T_VALUE)
   t_lower <- reactive(-abs(tValue()))
@@ -201,7 +228,7 @@ server <- function(input, output, session) {
 
   ## Calculate p-value based on t: take t_value from input, calculate p-value using pt()
   onCalculatePValue <- observe({
-    tValue(input$t_value) # taketz from input
+    tValue(input$t_value) # take t from input
     pValue((pt(
       input$t_value, input$df, lower.tail = input$t_value <= 0
     ) * 2) %>% round(3))
@@ -228,12 +255,14 @@ server <- function(input, output, session) {
   ## PLOT ---------------------------------------------------------
   output$distribution <- renderPlot({
     plot <- data() %>% ggplot(aes(t, d), ylim = c(0,.4)) ## Update: Adding ylim to fix y-axis
+
     ## Update: Adjust option show normal distribution curve -------
     norm_dist <- reactive(input$norm_dist) # Get value from the input check box
     if (norm_dist()==TRUE)
       plot <- plot +
         geom_line(data = data_norm(), mapping = aes(x = z, y = d_norm), colour = "#214a2c") +
         geom_area(data = data_norm(), mapping = aes(x = z, y = d_norm), fill = "#c5e186")
+
 
     if (mode() == "critical_values" ||
         (mode() == "combined" && !drawValue())) {
