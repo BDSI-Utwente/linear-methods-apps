@@ -1,5 +1,5 @@
 # Application: intra-class-correlation
-# Updated at:
+# Updated at: 6 June 2022
 
 library(shiny)
 library(miniUI)
@@ -12,25 +12,32 @@ library(Cairo)
 
 INTERCEPT <- 100
 SEED <- 1234
+var_random <- 10 # between 0.01 and 50 (ref: script icc.R)
 
 options(shiny.autoreload = TRUE)
 
 ui <- miniPage(
-    theme = bslib::bs_theme(version = 4),
     title = "intra class correlation",
+    theme = bslib::bs_theme(version = 4),
+    uiOutput("css"),
+    withMathJax(),
+
     miniContentPanel(
         conditionalPanel(
             "output.help",
-            class = "alert alert-info p-1 rounded d-flex align-items-center",
-            icon("warning", class = "h3 mx-3"),
-            p(
-                class = "mb-0",
-                "This app has a light and a full mode, which can be selected by appending",
-                code("?mode=light"),
-                "or",
-                code("?mode=full"),
-                "to the url. You are currently viewing the full mode. Choosing a mode will suppress this message."
+            div(
+                class = "alert alert-info p-1 rounded d-flex align-items-center",
+                icon("warning", class = "h3 mx-3"),
+                p(
+                    class = "mb-0",
+                    "This app has a light and a full mode, which can be selected by appending",
+                    code("?mode=light"),
+                    "or",
+                    code("?mode=full"),
+                    "to the url. You are currently viewing the full mode. Choosing a mode will suppress this message."
+                )
             )
+
         ),
         fillRow(
             plotOutput("naive", height = "100%"),
@@ -47,10 +54,13 @@ ui <- miniPage(
             "output.mode=='full'",
             sliderInput("p", "Measurements", 2, 20, 15, 1)
         ),
-        conditionalPanel(
-            "output.mode=='full'",
-            sliderInput("var", "Random variance", 0.01, 20, 10, 0.01)
-        ),
+
+        ## Update: Fix random variance
+        # conditionalPanel(
+        #     "output.mode=='full'",
+        #     sliderInput("var", "Random variance", 0.01, 20, 10, 0.01)
+        #),
+
         sliderInput("icc", "Intra class correlation", 0.05, 0.99, 0.1, 0.05)
     )
 )
@@ -60,11 +70,11 @@ server <- function(input, output) {
     data <- reactive({
         set.seed(SEED)
         patient <- rep(1:input$n, input$p) %>% factor()
-        patient_effect <- rnorm(input$n, 0, sqrt(input$var))
+        patient_effect <- rnorm(input$n, 0, sqrt(var_random))
 
         measure <- rep(1:input$p, each = input$n)
 
-        var_resid <- input$var / input$icc - input$var
+        var_resid <- var_random / input$icc - var_random
         y <- rnorm(input$n * input$p,
                    INTERCEPT + rep(patient_effect, input$p),
                    sqrt(var_resid))
