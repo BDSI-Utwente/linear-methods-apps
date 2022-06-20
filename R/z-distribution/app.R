@@ -1,3 +1,6 @@
+# app: z-distribution
+# last update: 20 June 2022
+
 library(shiny)
 library(miniUI)
 library(tidyverse)
@@ -14,15 +17,15 @@ STARTING_P_VALUE <-
     pnorm(STARTING_Z_VALUE / 2, lower.tail = STARTING_Z_VALUE <= 0) %>% round(3)
 RANGE <- c(-4, 4)
 
-label_p_value_html <- function(z) {
+label_p_value_html <- function(z) { # Update label: < instead of <=
     glue(
-        "\\(P(Z {ifelse(z <= 0, '\\\\leq', '\\\\geq')} {round(z, 2)}) = {ifelse(z <= 0, pnorm(z), 1 - pnorm(z)) %>% abs() %>% round(3)}\\)"
+        "\\(P(Z {ifelse(z <= 0, '<', '>')} {round(z, 2)}) = {ifelse(z <= 0, pnorm(z), 1 - pnorm(z)) %>% abs() %>% round(3)}\\)"
     )
 }
 
-label_p_value <- function(z) {
+label_p_value <- function(z) {# Update label: < instead of <=
     glue(
-        "P(Z {ifelse(z <= 0, '<=', '>=')} {round(z, 2)}) == {ifelse(z <= 0, pnorm(z), 1 - pnorm(z)) %>% abs() %>% round(3)}"
+        "P(Z {ifelse(z <= 0, '<', '>')} {round(z, 2)}) = {ifelse(z <= 0, pnorm(z), 1 - pnorm(z)) %>% abs() %>% round(3)}"
     )
 }
 
@@ -60,6 +63,8 @@ ui <- miniPage(
                 class = "d-flex flex-column",
                 sliderInput("alpha", "Type I error, \\(\\alpha\\)", 0.01, 0.2, 0.05, 0.01)
             ),
+            div(# critical values readout
+                htmlOutput("critical_values"))
         ),
         conditionalPanel(
             "output.mode == 'combined' || output.mode == 'p_values'",
@@ -160,7 +165,14 @@ server <- function(input, output, session) {
     })
 
     output$distribution <- renderPlot({
-        plot <- data() %>% ggplot(aes(z, d))
+        plot <- data() %>% ggplot(aes(z, d))+
+        theme(axis.text.y=element_blank(), # Update: Remove y-axis
+              axis.ticks.y=element_blank()) +
+            theme(axis.text.x = element_text(face="italic", color="black", margin = margin(t = 0.5,  # Top margin
+                                                                                           r = 2,  # Right margin
+                                                                                           b = 0.5,  # Bottom margin
+                                                                                           l = 2,  # Left margin
+                                                                                           unit = "cm"), size=14))
 
         if (mode() == "critical_values" ||
             (mode() == "combined" && !drawValue())) {
@@ -170,27 +182,18 @@ server <- function(input, output, session) {
                 scale_fill_discrete(guide = "none",
                                     type = c("#428BCA33", "#428BCA99"))
         }
-        if (mode() != "p_values") {
+        if (mode() != "p_values" && !drawValue()) { # Update: Do not show label critical values when calculating z-values/p-values
             plot <- plot +
-                geom_vline(
-                    xintercept = c(crit_lower(), crit_upper()),
-                    linetype = 5,
-                    size = .6,
-                    colour = "#226BAA"
-                ) +
-                # geom_text(
-                #     aes(z, label = label_quantile),
-                #     data = labels(),
-                #     y = 0,
-                #     hjust = "outward",
-                #     vjust = "outward",
-                #     nudge_x = c(-.05, 0.05),
-                #     # colour = "#428BCA",
-                #     size = 5,
-                #     parse = TRUE
+                # geom_vline(
+                #     xintercept = c(crit_lower(), crit_upper()),
+                #     linetype = 5,
+                #     size = .6,
+                #     colour = "#226BAA"
                 # ) +
+
             geom_text(
                 aes(z, d, label = label_percent),
+                fontface = "italic",
                 data = labels(),
                 # y = max(data()$d),
                 hjust = "outward",
@@ -198,8 +201,9 @@ server <- function(input, output, session) {
                 nudge_x = c(-.05, 0.05),
                 # colour = "#428BCA",
                 size = 5,
-                parse = TRUE
-            )
+                #parse = TRUE
+            )+
+            scale_x_continuous(breaks = c(crit_lower()%>% round(2), crit_upper()%>% round(2))) # Update: Show critical values in break
         }
 
         plot <- plot +
@@ -212,14 +216,16 @@ server <- function(input, output, session) {
                 geom_area(aes(fill = z >= z_upper())) +
                 scale_fill_discrete(guide = "none",
                                     type = c("transparent", "#B0306033")) +
-                geom_vline(
-                    xintercept = c(z_lower(), z_upper()),
-                    linetype = 5,
-                    size = .6,
-                    colour = "maroon"
-                ) +
+                # Update: not display vertical line
+                # geom_vline(
+                #     xintercept = c(z_lower(), z_upper()),
+                #     linetype = 5,
+                #     size = .6,
+                #     colour = "maroon"
+                # ) +
                 geom_text(
                     aes(z, d, label = label),
+                    fontface = "italic",
                     # y = max(data()$d) * .95,
                     data = tibble(
                         z = c(z_lower(), z_upper()),
@@ -230,8 +236,9 @@ server <- function(input, output, session) {
                     vjust = "inward",
                     nudge_x = c(-0.05, 0.05),
                     size = 5,
-                    parse = TRUE
-                )
+                    #parse = TRUE
+                ) +
+                scale_x_continuous(breaks = c(z_lower()%>% round(2), z_upper()%>% round(2))) # Update: Show critical values in break
         }
         plot
     })
