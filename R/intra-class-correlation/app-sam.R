@@ -1,5 +1,5 @@
 # Application: intra-class-correlation
-# Updated at: 6 June 2022
+# Updated at: 20 June 2022
 
 library(shiny)
 library(miniUI)
@@ -34,7 +34,7 @@ ui <- miniPage(
                     code("?mode=light"),
                     "or",
                     code("?mode=full"),
-                    "to the url. You are currently viewing the full mode. Choosing a mode will suppress this message."
+                    "to the url. You are currently viewing the light mode. Choosing a mode will suppress this message."
                 )
             )
 
@@ -117,7 +117,7 @@ server <- function(input, output) {
 
     output$mode <- reactive({
         qs <- getQueryString()
-        ifelse(is.null(qs$mode), "full", qs$mode)
+        ifelse(is.null(qs$mode), "light", qs$mode)
     })
 
     output$help <- reactive({
