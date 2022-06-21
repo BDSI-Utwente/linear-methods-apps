@@ -1,5 +1,5 @@
 # Application: intra-class-correlation
-# Updated at: 20 June 2022
+# Updated at: 21 June 2022
 
 library(shiny)
 library(miniUI)
@@ -41,18 +41,19 @@ ui <- miniPage(
         ),
         fillRow(
             plotOutput("naive", height = "100%"),
-            plotOutput("corrected", height = "100%")
+            plotOutput("corrected", height = "100%"),
+
         )
     ),
     miniButtonBlock(
         style = "display: flex; justify-content: space-around; gap: 1em; padding: .5em;",
         conditionalPanel(
             "output.mode=='full'",
-            sliderInput("n", "Respondents", 10, 20, 10, 1)
+            sliderInput("n", "Respondents", 10, 20, 10, 1) # Default value of n: 10 (for light mode)
         ),
         conditionalPanel(
             "output.mode=='full'",
-            sliderInput("p", "Measurements", 2, 20, 15, 1)
+            sliderInput("p", "Measurements", 2, 20, 15, 1) # Default value of p: 15 (for light mode)
         ),
 
         ## Update: Fix random variance
@@ -61,8 +62,9 @@ ui <- miniPage(
         #     sliderInput("var", "Random variance", 0.01, 20, 10, 0.01)
         #),
 
-        sliderInput("icc", "Intra class correlation", 0.05, 0.99, 0.1, 0.05)
+        sliderInput("icc", "Intra class correlation", 0.05, 0.99, 0.1, 0.05) # Default value of icc: 0.1 (for light mode)
     )
+
 )
 
 server <- function(input, output) {
@@ -115,10 +117,18 @@ server <- function(input, output) {
             coord_cartesian(ylim = data() %>% select(starts_with("resid")) %>% range())
     }) %>% bindCache(model())
 
-    output$mode <- reactive({
-        qs <- getQueryString()
-        ifelse(is.null(qs$mode), "light", qs$mode)
+    # output$mode <- reactive({
+    #     qs <- getQueryString()
+    #     ifelse(is.null(qs$mode), "light", qs$mode)
+    # })
+
+    mode <- reactive({ # default mode is combined
+        mode <- getQueryString()$mode
+        if (is.null(mode))
+            mode = "light"
+        mode
     })
+    output$mode <- reactive(mode())
 
     output$help <- reactive({
         qs <- getQueryString()
