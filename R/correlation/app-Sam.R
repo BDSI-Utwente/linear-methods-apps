@@ -20,7 +20,6 @@ LIMITS = c(-4, 4)
 ui <- miniPage(
     title = "correlation",
     theme = bslib::bs_theme(version = 4),
-    uiOutput("css"),
     withMathJax(),
 
     miniContentPanel(
@@ -83,9 +82,6 @@ server <- function(input, output) {
 
     help <- reactive(is.null(getQueryString()$mode))
     output$help <- reactive(help())
-    output$css <- renderUI({
-        tags$style(HTML("#p-value-panel {", htmltools::css( flex.direction = ifelse( mode() == "none", "column", "row" ))), "}")
-    })
 
     # PLOT
     output$corPlot <- renderPlot({
