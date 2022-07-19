@@ -14,7 +14,7 @@ options(shiny.autoreload = TRUE)
 PRECISION <- 0.05
 EXTRA_POINTS_AROUND_CRITICAL_VALUES = c(-0.001, 0, 0.001)
 STARTING_T_VALUE <- 2.25
-STARTING_DF <- 2
+STARTING_DF <- 20
 STARTING_P_VALUE <-
   pt(STARTING_T_VALUE / 2, STARTING_DF, lower.tail = STARTING_T_VALUE <= 0) %>% round(3)
 
@@ -84,7 +84,7 @@ ui <- miniPage(
     div(# degree of freedom for all modes
       class = "align-items-center",
       sliderInput(inputId = "df",
-                  label = "Degrees of Freedom", min = 1, max = 200, value = 1, step = 1)
+                  label = "Degrees of Freedom", min = 1, max = 200, value = STARTING_DF, step = 1)
     ),
 
     conditionalPanel(# apply for mode combine, set p_value
@@ -131,7 +131,10 @@ server <- function(input, output, session) {
 
   ## Update: Change range factor dynamically.
   range_factor <- reactive(0.2/input$alpha)
-  RANGE_new <- reactive(RANGE * range_factor())
+  # RANGE_new <- reactive(RANGE * range_factor())
+  RANGE_new <- reactive({
+    qt(c(0.0025, 0.9975), input$df)
+  })
 
   data <- reactive(tibble(
     t = c(
@@ -240,8 +243,8 @@ server <- function(input, output, session) {
     norm_dist <- reactive(input$norm_dist) # Get value from the input check box
     if (norm_dist()==TRUE)
       plot <- plot +
-        geom_line(data = data_norm(), mapping = aes(x = z, y = d_norm), colour = "#214a2c") +
-        geom_area(data = data_norm(), mapping = aes(x = z, y = d_norm), fill = "#c5e186")
+        geom_line(data = data_norm(), mapping = aes(x = z, y = d_norm), colour = "#214a2c", linetype = 2) # +
+        # geom_area(data = data_norm(), mapping = aes(x = z, y = d_norm), fill = "#c5e186")
 
     if (mode() == "critical_values"
         ||(mode() == "combined" && !drawValue()))
