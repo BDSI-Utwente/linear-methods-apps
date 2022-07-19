@@ -4,6 +4,8 @@ require(tidyverse)
 require(shinyjs)
 require(glue)
 
+source("../style.R")
+
 defaults <- list(
     group1 = list(
         mean = 20,
