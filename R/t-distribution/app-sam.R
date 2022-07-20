@@ -7,6 +7,13 @@ library(tidyverse)
 library(glue)
 library(Cairo)
 #library(ggtext)
+# source("../style.R") # update style from local script
+# Update: load style from public gist
+if (!("devtools" %in% installed.packages()[, 1])) {
+  install.packages("devtools")
+}
+devtools::source_gist("https://gist.github.com/anhtth16/68f2b0d746590273ce2ec5c773dad2a5")
+
 
 options(shiny.usecairo = TRUE)
 options(shiny.autoreload = TRUE)
@@ -14,7 +21,7 @@ options(shiny.autoreload = TRUE)
 PRECISION <- 0.05
 EXTRA_POINTS_AROUND_CRITICAL_VALUES = c(-0.001, 0, 0.001)
 STARTING_T_VALUE <- 2.25
-STARTING_DF <- 2
+STARTING_DF <- 20
 STARTING_P_VALUE <-
   pt(STARTING_T_VALUE / 2, STARTING_DF, lower.tail = STARTING_T_VALUE <= 0) %>% round(3)
 
@@ -84,7 +91,7 @@ ui <- miniPage(
     div(# degree of freedom for all modes
       class = "align-items-center",
       sliderInput(inputId = "df",
-                  label = "Degrees of Freedom", min = 1, max = 200, value = 1, step = 1)
+                  label = "Degrees of Freedom", min = 1, max = 200, value = STARTING_DF, step = 1)
     ),
 
     conditionalPanel(# apply for mode combine, set p_value
