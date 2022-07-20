@@ -1,8 +1,18 @@
+# Application: ANOVA
+# Update at: 20/07/2022
+
 require(shiny)
 require(plotly)
 require(tidyverse)
 require(shinyjs)
 require(glue)
+# source("../style.R") # update style from local script
+# Update: load style from public gist
+if (!("devtools" %in% installed.packages()[, 1])) {
+    install.packages("devtools")
+}
+devtools::source_gist("https://gist.github.com/anhtth16/68f2b0d746590273ce2ec5c773dad2a5")
+
 
 defaults <- list(
     group1 = list(
