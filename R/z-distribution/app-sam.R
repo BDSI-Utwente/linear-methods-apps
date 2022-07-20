@@ -1,11 +1,18 @@
 # App: z_distribution
-# Last update: 20 June 22
+# Last update: 20/07/2022
 
 library(shiny)
 library(miniUI)
 library(tidyverse)
 library(glue)
 library(Cairo)
+# source("../style.R") # update style from local script
+# Update: load style from public gist
+if (!("devtools" %in% installed.packages()[, 1])) {
+    install.packages("devtools")
+}
+devtools::source_gist("https://gist.github.com/anhtth16/68f2b0d746590273ce2ec5c773dad2a5")
+
 
 options(shiny.usecairo = TRUE)
 options(shiny.autoreload = TRUE)
