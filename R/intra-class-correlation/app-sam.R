@@ -1,5 +1,5 @@
 # Application: intra-class-correlation
-# Updated at: 21 June 2022
+# Updated at: 20/07/2022
 
 library(shiny)
 library(miniUI)
@@ -19,7 +19,6 @@ options(shiny.autoreload = TRUE)
 ui <- miniPage(
     title = "intra class correlation",
     theme = bslib::bs_theme(version = 4),
-    uiOutput("css"),
     withMathJax(),
 
     miniContentPanel(
