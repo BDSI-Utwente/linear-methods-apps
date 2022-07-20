@@ -1,5 +1,5 @@
 # App: t_distribution
-# Last update: 20 June 22
+# Last update: 20/07/2022
 
 library(shiny)
 library(miniUI)
@@ -131,7 +131,10 @@ server <- function(input, output, session) {
 
   ## Update: Change range factor dynamically.
   range_factor <- reactive(0.2/input$alpha)
-  RANGE_new <- reactive(RANGE * range_factor())
+  #RANGE_new <- reactive(RANGE * range_factor())
+  RANGE_new <- reactive({
+    qt(c(0.0025, 0.9975), input$df)
+  })
 
   data <- reactive(tibble(
     t = c(
@@ -240,8 +243,8 @@ server <- function(input, output, session) {
     norm_dist <- reactive(input$norm_dist) # Get value from the input check box
     if (norm_dist()==TRUE)
       plot <- plot +
-        geom_line(data = data_norm(), mapping = aes(x = z, y = d_norm), colour = "#214a2c") +
-        geom_area(data = data_norm(), mapping = aes(x = z, y = d_norm), fill = "#c5e186")
+        geom_line(data = data_norm(), mapping = aes(x = z, y = d_norm), colour = "#214a2c", linetype = 2) # +
+       # geom_area(data = data_norm(), mapping = aes(x = z, y = d_norm), fill = "#c5e186")
 
     if (mode() == "critical_values"
         ||(mode() == "combined" && !drawValue()))
