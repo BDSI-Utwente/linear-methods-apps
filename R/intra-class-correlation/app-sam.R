@@ -6,9 +6,17 @@ library(miniUI)
 library(tidyverse)
 library(lme4)
 library(modelr) # get residuals
+library(gistr)
 # library(performance) # compute ICC
 library(insight) # getting variance components
 library(Cairo)
+# source("../style.R") # update style from local script
+# Update: load style from public gist
+if (!("devtools" %in% installed.packages()[, 1])) {
+    install.packages("devtools")
+}
+devtools::source_gist("https://gist.github.com/anhtth16/68f2b0d746590273ce2ec5c773dad2a5")
+
 
 INTERCEPT <- 100
 SEED <- 1234
