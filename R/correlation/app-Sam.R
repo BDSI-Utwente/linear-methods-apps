@@ -1,5 +1,5 @@
 # App: correlation
-# Last update: 14 June 22
+# Last update: 20/07/2022
 
 require(tidyverse)
 require(miniUI)
@@ -20,7 +20,6 @@ LIMITS = c(-4, 4)
 ui <- miniPage(
     title = "correlation",
     theme = bslib::bs_theme(version = 4),
-    uiOutput("css"),
     withMathJax(),
 
     miniContentPanel(
