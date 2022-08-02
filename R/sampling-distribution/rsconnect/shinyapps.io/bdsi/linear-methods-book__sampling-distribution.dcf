@@ -5,9 +5,9 @@ account: bdsi
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 5052473
-bundleId: 5217496
+bundleId: 6157922
 url: https://bdsi.shinyapps.io/linear-methods-book__sampling-distribution/
-when: 1636118415.40173
-lastSyncTime: 1636118415.40173
+when: 1659449919.11026
+lastSyncTime: 1659449919.11027
 asMultiple: FALSE
 asStatic: FALSE
