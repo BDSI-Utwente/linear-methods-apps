@@ -1,11 +1,17 @@
 # App: correlation
-# Last update: 31 May 22
+# Last update: 20/07/2022
 
 require(tidyverse)
 require(miniUI)
 require(shiny)
 require(shinyjs)
 require(plotly)
+# source("../style.R") # update style from local script
+# Update: load style from public gist
+if (!("devtools" %in% installed.packages()[, 1])) {
+    install.packages("devtools")
+}
+devtools::source_gist("https://gist.github.com/anhtth16/68f2b0d746590273ce2ec5c773dad2a5")
 
 # options(shiny.autoreload = TRUE)
 
@@ -16,10 +22,10 @@ LIMITS = c(-4, 4)
 
 # based on https://stats.stackexchange.com/questions/522454/how-to-construct-simulate-data-that-will-have-a-given-coefficient-of-determina/522470#522470
 # Define UI for application that draws a histogram
+
 ui <- miniPage(
     title = "correlation",
     theme = bslib::bs_theme(version = 4),
-    uiOutput("css"),
     withMathJax(),
 
     miniContentPanel(
@@ -32,7 +38,7 @@ ui <- miniPage(
                 p(
                     class = "mb-0",
                     "This app has two modes: show linear fit, or not. You can select the mode by adding",
-                    code("?mode=linear_fit"),
+                    code("?mode=linear"),
                     ", or",
                     code("?mode=none"),
                     "to the url. You are currently viewing the mode not showing linear fit. Choosing a mode will suppress this message."
@@ -42,8 +48,6 @@ ui <- miniPage(
         plotOutput("corPlot", height = "100%")
     ),
 
-    # useShinyjs(),
-    # miniContentPanel(plotOutput("corPlot", height = "100%")),
     miniButtonBlock(
         style = "justify-content: space-around; align-items: center; gap: 1em;",
 
@@ -53,9 +57,11 @@ ui <- miniPage(
                     1,
                     value = INITIAL_R,
                     0.01),
-        # checkboxInput("linear", "Show linear fit?", FALSE),
-        # checkboxInput("se", "Show uncertainty?", FALSE) => Sam: This check box does not work
 
+        conditionalPanel( # Checj box to show linear fit, this only display in mode "linear"
+            "output.mode == 'linear'",
+            checkboxInput("linear", "Show linear fit?", FALSE)
+        )
     )
 )
 
@@ -72,16 +78,6 @@ server <- function(input, output) {
         x + error
     }) %>% bindEvent(input$r)
 
-    # observe({
-    #     if (input$linear) {
-    #         enable("se")
-    #     } else {
-    #         disable("se")
-    #         updateCheckboxInput(inputId = "se", value = FALSE)
-    #     }
-    # })
-
-    ## UPDATE 31 MAY:
     mode <- reactive({ # default mode is "none"
         mode <- getQueryString()$mode
         if (is.null(mode))
@@ -96,22 +92,24 @@ server <- function(input, output) {
         tags$style(HTML("#p-value-panel {", htmltools::css( flex.direction = ifelse( mode() == "none", "column", "row" ))), "}")
     })
 
-    ###
-
+    # PLOT
     output$corPlot <- renderPlot({
         plot <- ggplot(tibble(x, y = y()), aes(x, y)) +
             geom_point() +
             coord_cartesian(xlim = LIMITS, ylim = LIMITS)
 
-        ## UPDATE: show linear fit only in mode "linear_fit"
-        if (mode() != "none") {
-             plot <- plot + geom_smooth(method = "lm")
-         }
+        ## Show linear fit only in mode "linear"
+        # if (mode() != "none") {
+        #      plot <- plot + geom_smooth(method = "lm", se = FALSE) # show linear fit, not confidence interval
+        #  }
+
+        ## UPDATE: show linear fit if tick chexbox in mode "linear"
+        if (input$linear == TRUE) {
+            plot <- plot + geom_smooth(method = "lm", se = FALSE) # show linear fit, not confidence interval
+        }
         plot
     })
-    #%>% bindCache(input$r
-                     #input$linear,
-                     #input$se)
+    #%>% bindCache(input$r)
 
     outputOptions(output, "mode", suspendWhenHidden = FALSE)
     outputOptions(output, "help", suspendWhenHidden = FALSE)
