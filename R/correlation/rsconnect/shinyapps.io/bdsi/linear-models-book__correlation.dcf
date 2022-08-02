@@ -5,9 +5,9 @@ account: bdsi
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 5052454
-bundleId: 5217481
+bundleId: 6157976
 url: https://bdsi.shinyapps.io/linear-models-book__correlation/
-when: 1636118192.72665
-lastSyncTime: 1636118192.72665
+when: 1659450828.69677
+lastSyncTime: 1659450828.69678
 asMultiple: FALSE
 asStatic: FALSE
