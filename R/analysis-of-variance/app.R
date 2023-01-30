@@ -6,6 +6,7 @@ require(plotly)
 require(tidyverse)
 require(shinyjs)
 require(glue)
+
 # source("../style.R") # update style from local script
 # Update: load style from public gist
 if (!("devtools" %in% installed.packages()[, 1])) {
@@ -197,7 +198,6 @@ server <- function(input, output) {
             colour = group
         )) +
             geom_boxplot() + geom_point()
-        #ggplotly()
     })
 }
 
