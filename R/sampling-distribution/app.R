@@ -1,5 +1,12 @@
 # Application: Sampling distribution
-# Update: 20/07/2022
+
+# Notes:
+# - how relevant is it to let students set the specifics of the distribution? 
+#   - we could remove the extra fields, making space in the two-plot solution
+# - can we plot the results of drawing samples in the same plot? 
+#   - update for intermediate results (e.g. almost animated)
+#   - use different colors for different sampling distributions (different sizes, number of samples)
+#   - makes it clear that the sampling distribution both normalizes and narrows with more/larger samples (averages out)
 
 library(shiny)
 library(miniUI)
@@ -25,45 +32,51 @@ ui <- miniPage(
     ),
     # TODO: figure out why I need to reference font awesome manually
     tags$script(src="https://kit.fontawesome.com/3910aff050.js"),
-    miniTabstripPanel(
-    miniTabPanel(
-        "Population",
-        icon = icon("globe-europe"),
+    shiny::fillRow(
+        shiny::fillCol(
         imageOutput("population", height = "100%", width = "100%"),
         miniButtonBlock(
-            style = "justify-content: space-around; align-items: center; gap: 1em;",
-            selectInput("dist", "Distribution", c("normal", "skewed", "uniform")),
-            conditionalPanel(
-                "input.dist === 'normal' || input.dist === 'skewed'",
-                sliderInput("mean", "Mean", 0, 100, 50)
+            style = "justify-content: space-around; align-items: center; gap: 1em; padding-right: 0.5em;",
+            div(
+            selectInput("dist", "Distribution", c("normal", "skewed", "uniform"), selectize=FALSE, width="100%"),
+            style="width: min-content; flex: auto 1 1;",
             ),
             conditionalPanel(
                 "input.dist === 'normal' || input.dist === 'skewed'",
-                sliderInput("sd", "Standard deviation", 0, 10, 1, .1)
+                sliderInput("mean", "Mean", 0, 100, 50, width="100%"),
+                style="width: min-content; flex: auto 1 1;",
+            ),
+            conditionalPanel(
+                "input.dist === 'normal' || input.dist === 'skewed'",
+                sliderInput("sd", "Standard deviation", 0, 10, 1, .1, width="100%"),
+                style="width: min-content; flex: auto 1 1;",
             ),
 
             conditionalPanel("input.dist === 'skewed'",
-                             selectInput("skew", "Skew", c("left", "right"))),
+                             selectInput("skew", "Skew", c("left", "right"), selectize=FALSE, width="100%"),
+                style="width: min-content; flex: auto 1 1;",),
 
             conditionalPanel("input.dist === 'uniform'",
-                             sliderInput("min", "Min", 0, 49, 0)),
+                             sliderInput("min", "Min", 0, 49, 0, width="100%"),
+                style="width: min-content; flex: auto 1 1;",),
             conditionalPanel(
                 "input.dist === 'uniform'",
-                sliderInput("max", "Max", 50, 100, 100)
+                sliderInput("max", "Max", 50, 100, 100, width="100%"),
+                style="width: min-content; flex: auto 1 1;",
             )
-        )
+        ),
+        # style = "border-right: 2px dashed grey;",
+         flex = c(1, NA)
     ),
-    miniTabPanel(
-        "Sampling distribution",
-        icon = icon("users"),
+        shiny::fillCol(
         imageOutput("sampling_distribution", height = "100%", width = "100%"),
         miniButtonBlock(
-            style = "justify-content: space-around; align-items: center; gap: 1em;",
+            style = "justify-content: space-around; align-items: center; gap: 1em; padding-left: 0.5em;",
             sliderInput("sample_size", "Sample size", 2, 500, 10),
             sliderInput("sample_count", "Number of samples", 1, 1000, 50),
             radioButtons("param", "Parameter", c(Mean = "mean", SD = "sd"), inline = TRUE)
-        )
-    )
+        ), flex = c(1, NA)
+    ), flex = 1
 ))
 
 server <- function(input, output) {
@@ -110,3 +123,4 @@ server <- function(input, output) {
 
 # Run the application
 shinyApp(ui = ui, server = server)
+runApp(shinyApp)
