@@ -1,0 +1,13 @@
+name: t-distribution
+title: t-distribution
+username:
+account: bdsi
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 6728556
+bundleId: 6793658
+url: https://bdsi.shinyapps.io/t-distribution/
+when: 1675174717.12732
+lastSyncTime: 1675174717.12733
+asMultiple: FALSE
+asStatic: FALSE

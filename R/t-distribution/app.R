@@ -1,5 +1,7 @@
 # App: t_distribution
-# Last update: 20/07/2022
+
+# TODO: Still won't boot on shinyapps.io, remove some of the possible infinite loops and create simplified versions?
+
 
 library(shiny)
 library(miniUI)
