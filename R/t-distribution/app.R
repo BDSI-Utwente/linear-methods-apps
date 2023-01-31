@@ -24,15 +24,8 @@ PRECISION <- 0.05
 EXTRA_POINTS_AROUND_CRITICAL_VALUES = c(-0.001, 0, 0.001)
 STARTING_T_VALUE <- 2.25
 STARTING_DF <- 20
-STARTING_P_VALUE <-
-  pt(STARTING_T_VALUE / 2, STARTING_DF, lower.tail = STARTING_T_VALUE <= 0) %>% round(3)
-
-STARTING_Z_VALUE <- 2.25
-STARTING_P_VALUE <-
-  pnorm(STARTING_Z_VALUE / 2, lower.tail = STARTING_Z_VALUE <= 0) %>% round(3)
-
-RANGE <-
-  c(-4, 4) # range for T value corresponding to alpha max = 0.2
+STARTING_P_VALUE <- pt(STARTING_T_VALUE / 2, STARTING_DF, lower.tail = STARTING_T_VALUE <= 0) %>% round(3)
+RANGE <- c(-4, 4) # range for T value corresponding to alpha max = 0.2
 
 label_p_value_html <-
   function(t, df) {
