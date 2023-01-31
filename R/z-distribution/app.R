@@ -3,9 +3,13 @@ library(miniUI)
 library(tidyverse)
 library(glue)
 library(Cairo)
+require(devtools)
 
 options(shiny.usecairo = TRUE)
 options(shiny.autoreload = TRUE)
+
+devtools::source_gist("https://gist.github.com/anhtth16/68f2b0d746590273ce2ec5c773dad2a5")
+
 
 PRECISION <- 0.05
 EXTRA_POINTS_AROUND_CRITICAL_VALUES = c(-0.001, 0, 0.001)
@@ -58,8 +62,10 @@ ui <- miniPage(
             "output.mode == 'combined' || output.mode == 'critical_values'",
             div(
                 class = "d-flex flex-column",
-                sliderInput("alpha", "Type I error, \\(\\alpha\\)", 0.01, 0.2, 0.05, 0.01)
+                sliderInput("alpha", "Type I error, \\(\\alpha\\)", 0.01, 0.2, 0.05, 0.01, width="100%"),
+                style = "width: 100%;"
             ),
+            style = "flex: auto 1 1;"
         ),
         conditionalPanel(
             "output.mode == 'combined' || output.mode == 'p_values'",
@@ -68,25 +74,28 @@ ui <- miniPage(
                 class = "d-flex",
                 div(
                     class = "d-flex align-items-center",
-                    numericInput("z_value", "\\(z\\)-value", STARTING_Z_VALUE,-4, 4, 0.01),
+                    numericInput("z_value", "\\(z\\)-value", STARTING_Z_VALUE,-4, 4, 0.01, width="100%"),
                     actionButton(
                         "z_to_p",
                         "Calculate \\(p\\)-value",
                         class = "btn-primary",
                         style = "position: relative; top: 8px;"
-                    )
+                    ),
+                    style = "width: 100%;"
                 ),
                 div(
                     class = "d-flex align-items-center",
-                    numericInput("p_value", "\\(p\\)-value", STARTING_P_VALUE, 0, 1, 0.01),
+                    numericInput("p_value", "\\(p\\)-value", STARTING_P_VALUE, 0, 1, 0.01, width="100%"),
                     actionButton(
                         "p_to_z",
                         "Calculate \\(z\\)-value",
                         class = "btn-primary",
                         style = "position: relative; top: 8px;"
-                    )
+                    ),
+                    style = "width: 100%;"
                 )
-            )
+            ),
+            style = "flex: auto 1 1;"
         )
     )
 )
