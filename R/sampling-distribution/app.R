@@ -1,9 +1,9 @@
 # Application: Sampling distribution
 
 # Notes:
-# - how relevant is it to let students set the specifics of the distribution? 
+# - how relevant is it to let students set the specifics of the distribution?
 #   - we could remove the extra fields, making space in the two-plot solution
-# - can we plot the results of drawing samples in the same plot? 
+# - can we plot the results of drawing samples in the same plot?
 #   - update for intermediate results (e.g. almost animated)
 #   - use different colors for different sampling distributions (different sizes, number of samples)
 #   - makes it clear that the sampling distribution both normalizes and narrows with more/larger samples (averages out)
@@ -11,116 +11,271 @@
 library(shiny)
 library(miniUI)
 library(tidyverse)
+library(glue)
+library(devtools)
+library(sn)
 
-# source("../style.R") # update style from local script
-# Update: load style from public gist
-if (!("devtools" %in% installed.packages()[, 1])) {
-    install.packages("devtools")
-}
-devtools::source_gist("https://gist.github.com/anhtth16/68f2b0d746590273ce2ec5c773dad2a5")
+# devtools::source_gist("https://gist.github.com/anhtth16/68f2b0d746590273ce2ec5c773dad2a5")
 
+options(shiny.usecairo = TRUE)
 options(shiny.autoreload = TRUE)
 
+DIST_OPTIONS = list("Normal" = 1,
+                    "Uniform" = 2,
+                    "Skewed" = 3)
+
+# number of points for population distribution function
+PRECISION = 1000
+
+# magnitude for the alpha parameter of skewed normal distribution
+# larger values give more extreme skew
+SKEW_ALPHA_FACTOR = 5
+
 ui <- miniPage(
-    tags$style("
-        .gadget-tabs-container {
-            border-top: 1px solid #ccc;
-        }
-        .gadget-tabs-container ul.gadget-tabs {
-            background-color: #e2e2e2;
-        }"
-    ),
-    # TODO: figure out why I need to reference font awesome manually
-    tags$script(src="https://kit.fontawesome.com/3910aff050.js"),
-    shiny::fillRow(
-        shiny::fillCol(
-        imageOutput("population", height = "100%", width = "100%"),
-        miniButtonBlock(
-            style = "justify-content: space-around; align-items: center; gap: 1em; padding-right: 0.5em;",
+    title = "Sampling Distributions",
+    theme = bslib::bs_theme(version = 4),
+    uiOutput("css"),
+    withMathJax(),
+    miniContentPanel(plotOutput("distPlot", height = "100%")),
+    miniButtonBlock(
+        div(
+            tags$small("Population"),
+            selectInput(
+                "dist",
+                "Distribution",
+                DIST_OPTIONS,
+                selectize = FALSE,
+                width = "100%"
+            ),
+            # TODO: remove distribution parameters, set to sensible defaults
             div(
-            selectInput("dist", "Distribution", c("normal", "skewed", "uniform"), selectize=FALSE, width="100%"),
-            style="width: min-content; flex: auto 1 1;",
+                conditionalPanel(
+                    "input.dist != 2",
+                    numericInput("mean", "Mean", 0, width = "100%"),
+                    numericInput("sd", "Standard Deviation", 1, width = "100%"),
+                    style = "display: flex; flex-flow: row nowrap; flex: 2 2 calc(100% * 2/3); gap: 0.5em;"
+                ),
+                conditionalPanel(
+                    "input.dist == 3",
+                    selectInput(
+                        "skew",
+                        "Skew",
+                        c("Left" = 1, "Right" = 2),
+                        selectize = FALSE,
+                        width = "100%"
+                    ),
+                    style = "display: flex; flex-flow: row nowrap; flex: 1 1 calc(100% / 3); gap: 0.5em;"
+                ),
+                conditionalPanel(
+                    "input.dist == 2",
+                    numericInput("min", "Minimum", 0, width = "100%"),
+                    numericInput("max", "Maximum", 1, width = "100%"),
+                    style = "display: flex; flex-flow: row nowrap; flex: 1 1 auto; gap: 0.5em;"
+                ),
+                style = "display: flex; flex-flow: row nowrap; gap: 1em;"
             ),
-            conditionalPanel(
-                "input.dist === 'normal' || input.dist === 'skewed'",
-                sliderInput("mean", "Mean", 0, 100, 50, width="100%"),
-                style="width: min-content; flex: auto 1 1;",
-            ),
-            conditionalPanel(
-                "input.dist === 'normal' || input.dist === 'skewed'",
-                sliderInput("sd", "Standard deviation", 0, 10, 1, .1, width="100%"),
-                style="width: min-content; flex: auto 1 1;",
-            ),
-
-            conditionalPanel("input.dist === 'skewed'",
-                             selectInput("skew", "Skew", c("left", "right"), selectize=FALSE, width="100%"),
-                style="width: min-content; flex: auto 1 1;",),
-
-            conditionalPanel("input.dist === 'uniform'",
-                             sliderInput("min", "Min", 0, 49, 0, width="100%"),
-                style="width: min-content; flex: auto 1 1;",),
-            conditionalPanel(
-                "input.dist === 'uniform'",
-                sliderInput("max", "Max", 50, 100, 100, width="100%"),
-                style="width: min-content; flex: auto 1 1;",
-            )
+            style = "flex: 1 1 50%;"
         ),
-        # style = "border-right: 2px dashed grey;",
-         flex = c(1, NA)
+        div(
+            tags$small("Draw Samples"),
+            div(
+                numericInput(
+                    "sample_count",
+                    "Samples",
+                    value = 10,
+                    min = 1,
+                    max = 1000,
+                    step = 1,
+                    width = "100%"
+                ),
+                numericInput(
+                    "sample_size",
+                    "Sample size",
+                    value = 10,
+                    min = 1,
+                    max = 1000,
+                    step = 1,
+                    width = "100%"
+                ),
+                actionButton("draw", "Draw!", width = "100%", style = "margin-top: 2em; margin-left: 0;"),
+                style = "display: flex; flex-flow: row nowrap; gap: 0.5em; align-items: flex-start;"
+            ),
+            style = "flex: 1 1 50%;"
+        ),
+        style = "gap: 1em;"
     ),
-        shiny::fillCol(
-        imageOutput("sampling_distribution", height = "100%", width = "100%"),
-        miniButtonBlock(
-            style = "justify-content: space-around; align-items: center; gap: 1em; padding-left: 0.5em;",
-            sliderInput("sample_size", "Sample size", 2, 500, 10),
-            sliderInput("sample_count", "Number of samples", 1, 1000, 50),
-            radioButtons("param", "Parameter", c(Mean = "mean", SD = "sd"), inline = TRUE)
-        ), flex = c(1, NA)
-    ), flex = 1
-))
+)
 
-server <- function(input, output) {
-    population <- reactive(if (input$dist == "normal") {
-        return(tibble(x = rnorm(5000, input$mean, input$sd)))
-    } else if (input$dist == "skewed") {
-        if (input$skew == "left") {
-            skew <- rbeta(5000, 2, 5)
-        } else {
-            skew <- rbeta(5000, 5, 2)
-        }
-        return(tibble(x = (skew - 0.5) * input$sd * 2 + input$mean))
-    } else if (input$dist == "uniform") {
-        return(tibble(x = runif(5000, input$min, input$max)))
+server <- function(input, output, session) {
+    # extra wrapper around min/max for uniform dist to make sure
+    # min/max aren't swapped
+    limits <- reactive({
+        list(
+            min = range(input$min, input$max)[1],
+            max = range(input$min, input$max)[2]
+        )
     })
 
-    samples <- reactive({
-        pop <- population()
-        n <- input$sample_count
-        k <- input$sample_size
-        map(1:n, ~ sample(pop$x, k, TRUE))
+    # wrapper around alpha parameter for skewed normal dist
+    skew <- reactive({
+        ifelse(input$skew == 1,
+               SKEW_ALPHA_FACTOR * -1,
+               SKEW_ALPHA_FACTOR)
     })
 
-    output$population <- renderPlot(ggplot(population(), aes(x)) +
-                                        geom_histogram(bins = 20))
+    population <- reactive({
+        q <- seq(0, 1, length.out = PRECISION)
 
-    output$sampling_distribution <- renderPlot({
-        data <- tibble(mean = samples() %>% map_dbl(mean),
-                       sd = samples() %>% map_dbl(sd))
-        param <- input$param
-        if (input$param == "mean") {
-            plot <- ggplot(data, aes(mean)) +
-                geom_histogram(bins = 20)
+        if (input$dist == 1) {
+            # normal
+            x <- qnorm(q, input$mean, input$sd)
+            d <- dnorm(x, input$mean, input$sd)
+        } else if (input$dist == 2) {
+            # uniform
+            # extend range slightly to cover the limits
+            range <- limits()$max - limits()$min
+
+            x <- seq(# extend ~5% below and above
+                limits()$min - range * 0.05,
+                limits()$max + range * 0.05,
+
+                # add more points to compensate
+                length.out = PRECISION * 1.1)
+
+            d <- dunif(x, limits()$min, limits()$max)
+        }
+        else if (input$dist == 3) {
+            # skewed
+            x <- qsn(q, input$mean, input$sd, skew())
+            d <- dsn(x, input$mean, input$sd, skew())
         }
 
-        if (input$param == "sd") {
-            plot <- ggplot(data, aes(sd)) +
-                geom_histogram(bins = 20)
+        tibble(x, d)
+    })
+
+    # wrapper to create an appropriate random draw function
+    random <- reactive({
+        if (input$dist == 1) {
+            # normal
+            f <- function(n)
+                rnorm(n, input$mean, input$sd)
+        } else if (input$dist == 2) {
+            # uniform
+            f <- function(n)
+                runif(n, limits()$min, limits()$max)
         }
+        else if (input$dist == 3) {
+            # skewed
+            f <- function(n)
+                rsn(n, input$mean, input$sd, skew())
+        }
+
+        f
+    })
+
+    # reactive value to keep track of drawn samples so far
+    samples <- reactiveVal({
+        tibble(size = numeric(0),
+               mean = numeric(0),
+               .rows = 0)
+    })
+
+    # clear samples when population changes
+    onPopulationChanged <- observe({
+        samples(tibble(
+            size = numeric(0),
+            mean = numeric(0),
+            .rows = 0
+        ))
+    }) %>% bindEvent(population())
+
+    # draw samples
+    onDraw <- observe({
+        # TODO: see if there is a more elegant approach to drawing from a sampling distribution directly.
+        means = replicate(input$sample_count,
+                          random()(input$sample_size) %>% mean())
+
+        samples(samples() %>% bind_rows(tibble(
+            mean = means, size = input$sample_size
+        )))
+
+    }) %>% bindEvent(input$draw)
+
+    output$distPlot <- renderPlot({
+
+        plot <- ggplot(population()) +
+
+            # population density plot
+            geom_line(aes(x, d)) +
+
+            # labels
+            scale_y_continuous(name = "Population density") +
+
+            # remove x axis label as it has no defined units
+            scale_x_continuous(name = "") +
+
+            # move the legend within the plot
+            theme(
+                legend.position = c(0.9, 0.9),
+                legend.text = element_text(size = 12),
+                legend.title = element_text(size = 14)
+            )
+
+        if (samples() %>% nrow()) {
+            sampling_counts <- samples() %>% dplyr::count(size)
+            # TODO: normalize heights to sum to 1, instead of setting the max to 1
+
+            # calculate the max height of sampling distribution graphs so that
+            # we can normalize it to the same height as the population density,
+            # and draw a secondary axis.
+            # We first need to get the width of bars in the histogram to calculate
+            # the number of samples in each bin.
+            pop_limits <- population() %>% filter(is.finite(x)) %>% pull(x) %>% range()
+            pop_range = pop_limits[2] - pop_limits[1]
+            sampling_mean_counts <- samples() %>%
+                mutate(mean = cut_width(mean, pop_range / 40, center = 0)) %>%
+                dplyr::count(size, mean)
+
+            # We can use the ratio of maximum heights of both layers to normalize
+            # the heights, and as the transformation for the secondary axis.
+            sec_axis_factor <- max(sampling_mean_counts$n) / max(population()$d)
+
+            plot <- plot +
+                # add secondary y-axis for sampling distribution counts
+                scale_y_continuous(
+                    name = "Population density",
+                    sec.axis = sec_axis(~ . * sec_axis_factor, name = "Number of samples")) +
+
+                # histograms for sampling distribution(s)
+                geom_bar(
+                    aes(
+                        x = mean,
+                        y = after_stat(count) / sec_axis_factor,
+                        colour = size %>% factor(labels = unique(size)),
+                        fill = size %>% factor(labels = unique(size)),
+                        group = size
+                    ),
+                    data = samples(),
+                    alpha = 0.3,
+                    position = "identity",
+                    stat = "bin",
+                    bins = 40
+                ) +
+
+                # describe samples in legend
+                scale_colour_discrete(
+                    name = "Distribution of drawn samples",
+                    labels = sampling_counts %>% glue_data("{n} samples of size {size}"),
+                    aesthetics = c("colour", "fill")
+                )
+        }
+
 
         plot
     })
 }
 
+after_stat
+
 # Run the application
 shinyApp(ui = ui, server = server)
-runApp(shinyApp)
