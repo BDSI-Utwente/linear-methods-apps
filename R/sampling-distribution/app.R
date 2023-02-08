@@ -20,22 +20,38 @@ library(sn)
 options(shiny.usecairo = TRUE)
 options(shiny.autoreload = TRUE)
 
-DIST_OPTIONS = list("Normal" = 1,
-                    "Uniform" = 2,
-                    "Skewed" = 3)
-
 # number of points for population distribution function
 PRECISION = 1000
+
+# number of bins for sampling distribution histograms
+BINS = 40
 
 # magnitude for the alpha parameter of skewed normal distribution
 # larger values give more extreme skew
 SKEW_ALPHA_FACTOR = 5
 
+# distributions and their parameters
+DISTRIBUTIONS = list(
+    Normal = list(mean = 0,
+                  sd = 1),
+    Uniform = list(min = 0,
+                   max = 10),
+    Skewed = list(mean = 0,
+                  sd = 1,
+                  alpha = SKEW_ALPHA_FACTOR),
+    Bimodal = list(
+        mean = c(-2, 2),
+        sd = c(1, 1),
+        p = 0.5 # prop to use dist 1
+    )
+)
+
 ui <- miniPage(
     title = "Sampling Distributions",
     theme = bslib::bs_theme(version = 4),
-    uiOutput("css"),
-    withMathJax(),
+    # uiOutput("css"),
+    shiny::withMathJax(),
+    shinyjs::useShinyjs(),
     miniContentPanel(plotOutput("distPlot", height = "100%")),
     miniButtonBlock(
         div(
@@ -43,36 +59,9 @@ ui <- miniPage(
             selectInput(
                 "dist",
                 "Distribution",
-                DIST_OPTIONS,
+                DISTRIBUTIONS %>% names(),
                 selectize = FALSE,
                 width = "100%"
-            ),
-            # TODO: remove distribution parameters, set to sensible defaults
-            div(
-                conditionalPanel(
-                    "input.dist != 2",
-                    numericInput("mean", "Mean", 0, width = "100%"),
-                    numericInput("sd", "Standard Deviation", 1, width = "100%"),
-                    style = "display: flex; flex-flow: row nowrap; flex: 2 2 calc(100% * 2/3); gap: 0.5em;"
-                ),
-                conditionalPanel(
-                    "input.dist == 3",
-                    selectInput(
-                        "skew",
-                        "Skew",
-                        c("Left" = 1, "Right" = 2),
-                        selectize = FALSE,
-                        width = "100%"
-                    ),
-                    style = "display: flex; flex-flow: row nowrap; flex: 1 1 calc(100% / 3); gap: 0.5em;"
-                ),
-                conditionalPanel(
-                    "input.dist == 2",
-                    numericInput("min", "Minimum", 0, width = "100%"),
-                    numericInput("max", "Maximum", 1, width = "100%"),
-                    style = "display: flex; flex-flow: row nowrap; flex: 1 1 auto; gap: 0.5em;"
-                ),
-                style = "display: flex; flex-flow: row nowrap; gap: 1em;"
             ),
             style = "flex: 1 1 50%;"
         ),
@@ -107,47 +96,80 @@ ui <- miniPage(
 )
 
 server <- function(input, output, session) {
-    # extra wrapper around min/max for uniform dist to make sure
-    # min/max aren't swapped
-    limits <- reactive({
-        list(
-            min = range(input$min, input$max)[1],
-            max = range(input$min, input$max)[2]
-        )
-    })
-
-    # wrapper around alpha parameter for skewed normal dist
-    skew <- reactive({
-        ifelse(input$skew == 1,
-               SKEW_ALPHA_FACTOR * -1,
-               SKEW_ALPHA_FACTOR)
-    })
-
     population <- reactive({
         q <- seq(0, 1, length.out = PRECISION)
 
-        if (input$dist == 1) {
+        if (input$dist == "Normal") {
             # normal
-            x <- qnorm(q, input$mean, input$sd)
-            d <- dnorm(x, input$mean, input$sd)
-        } else if (input$dist == 2) {
+            x <-
+                qnorm(q,
+                      DISTRIBUTIONS$Normal$mean,
+                      DISTRIBUTIONS$Normal$sd)
+            d <-
+                dnorm(x,
+                      DISTRIBUTIONS$Normal$mean,
+                      DISTRIBUTIONS$Normal$sd)
+        } else if (input$dist == "Uniform") {
             # uniform
             # extend range slightly to cover the limits
-            range <- limits()$max - limits()$min
+            range <-
+                DISTRIBUTIONS$Uniform$max - DISTRIBUTIONS$Uniform$min
 
-            x <- seq(# extend ~5% below and above
-                limits()$min - range * 0.05,
-                limits()$max + range * 0.05,
+            x <- seq(
+                # extend ~5% below and above
+                DISTRIBUTIONS$Uniform$min - range * 0.05,
+                DISTRIBUTIONS$Uniform$max + range * 0.05,
 
                 # add more points to compensate
-                length.out = PRECISION * 1.1)
+                length.out = PRECISION * 1.1
+            )
 
-            d <- dunif(x, limits()$min, limits()$max)
+            d <-
+                dunif(x,
+                      DISTRIBUTIONS$Uniform$min,
+                      DISTRIBUTIONS$Uniform$max)
         }
-        else if (input$dist == 3) {
+        else if (input$dist == "Skewed") {
             # skewed
-            x <- qsn(q, input$mean, input$sd, skew())
-            d <- dsn(x, input$mean, input$sd, skew())
+            x <-
+                qsn(
+                    q,
+                    DISTRIBUTIONS$Skewed$mean,
+                    DISTRIBUTIONS$Skewed$sd,
+                    DISTRIBUTIONS$Skewed$alpha
+                )
+            d <-
+                dsn(
+                    x,
+                    DISTRIBUTIONS$Skewed$mean,
+                    DISTRIBUTIONS$Skewed$sd,
+                    DISTRIBUTIONS$Skewed$alpha
+                )
+        }
+        else if (input$dist == "Bimodal") {
+            limits = range(
+                qnorm(
+                    q,
+                    DISTRIBUTIONS$Bimodal$mean[1],
+                    DISTRIBUTIONS$Bimodal$sd[1]
+                ),
+                qnorm(
+                    q,
+                    DISTRIBUTIONS$Bimodal$mean[2],
+                    DISTRIBUTIONS$Bimodal$sd[2]
+                ),
+                finite = TRUE
+            )
+            x <- seq(limits[1], limits[2], length.out = PRECISION)
+            d <-
+                dnorm(x,
+                      DISTRIBUTIONS$Bimodal$mean[1],
+                      DISTRIBUTIONS$Bimodal$sd[1]) *
+                DISTRIBUTIONS$Bimodal$p +
+                dnorm(x,
+                      DISTRIBUTIONS$Bimodal$mean[2],
+                      DISTRIBUTIONS$Bimodal$sd[2]) *
+                (1 - DISTRIBUTIONS$Bimodal$p)
         }
 
         tibble(x, d)
@@ -155,19 +177,40 @@ server <- function(input, output, session) {
 
     # wrapper to create an appropriate random draw function
     random <- reactive({
-        if (input$dist == 1) {
+        if (input$dist == "Normal") {
             # normal
             f <- function(n)
-                rnorm(n, input$mean, input$sd)
-        } else if (input$dist == 2) {
+                rnorm(n,
+                      DISTRIBUTIONS$Normal$mean,
+                      DISTRIBUTIONS$Normal$sd)
+        } else if (input$dist == "Uniform") {
             # uniform
             f <- function(n)
-                runif(n, limits()$min, limits()$max)
+                runif(n,
+                      DISTRIBUTIONS$Uniform$min,
+                      DISTRIBUTIONS$Uniform$max)
         }
-        else if (input$dist == 3) {
+        else if (input$dist == "Skewed") {
             # skewed
             f <- function(n)
-                rsn(n, input$mean, input$sd, skew())
+                rsn(
+                    n,
+                    DISTRIBUTIONS$Skewed$mean,
+                    DISTRIBUTIONS$Skewed$sd,
+                    DISTRIBUTIONS$Skewed$alpha
+                )
+        }
+        else if (input$dist == "Bimodal") {
+            # binormal - for each point we first draw a distribution
+            f <- function(n)
+                if_else(
+                    runif(n) <= DISTRIBUTIONS$Bimodal$p,
+                    rnorm(n, DISTRIBUTIONS$Bimodal$mean[1], DISTRIBUTIONS$Bimodal$sd[1]),
+                    rnorm(n, DISTRIBUTIONS$Bimodal$mean[2], DISTRIBUTIONS$Bimodal$sd[2])
+                )
+        }
+        else {
+            stop("unknown distribution: ", input$dist)
         }
 
         f
@@ -191,6 +234,10 @@ server <- function(input, output, session) {
 
     # draw samples
     onDraw <- observe({
+        # disable draw button while we are updating
+        # TODO: we could render a subtle progress bar while drawing new samples
+        shinyjs::disable("draw")
+
         # TODO: see if there is a more elegant approach to drawing from a sampling distribution directly.
         means = replicate(input$sample_count,
                           random()(input$sample_size) %>% mean())
@@ -199,20 +246,22 @@ server <- function(input, output, session) {
             mean = means, size = input$sample_size
         )))
 
+        # re-enable after we're done
+        shinyjs::enable("draw")
+
     }) %>% bindEvent(input$draw)
 
     output$distPlot <- renderPlot({
-
         plot <- ggplot(population()) +
 
             # population density plot
             geom_line(aes(x, d)) +
 
-            # labels
-            scale_y_continuous(name = "Population density") +
-
             # remove x axis label as it has no defined units
             scale_x_continuous(name = "") +
+
+            # add label for y axis
+            scale_y_continuous(name = "Population density") +
 
             # move the legend within the plot
             theme(
@@ -221,38 +270,26 @@ server <- function(input, output, session) {
                 legend.title = element_text(size = 14)
             )
 
+
         if (samples() %>% nrow()) {
-            sampling_counts <- samples() %>% dplyr::count(size)
-            # TODO: normalize heights to sum to 1, instead of setting the max to 1
+            # summarize samples for label
+            sampling_groups <- samples() %>% count(size)
 
-            # calculate the max height of sampling distribution graphs so that
-            # we can normalize it to the same height as the population density,
-            # and draw a secondary axis.
-            # We first need to get the width of bars in the histogram to calculate
-            # the number of samples in each bin.
-            pop_limits <- population() %>% filter(is.finite(x)) %>% pull(x) %>% range()
-            pop_range = pop_limits[2] - pop_limits[1]
-            sampling_mean_counts <- samples() %>%
-                mutate(mean = cut_width(mean, pop_range / 40, center = 0)) %>%
-                dplyr::count(size, mean)
-
-            # We can use the ratio of maximum heights of both layers to normalize
-            # the heights, and as the transformation for the secondary axis.
-            sec_axis_factor <- max(sampling_mean_counts$n) / max(population()$d)
+            # TODO: try to draw secondary axis for sample counts in observed
+            # sampling distributions?
+            # I've already wasted a day on this, syncing counts with density so
+            # that both the count and relative density remains correct has proven
+            # a bitch to figure out (i.e. what f to use so that f(y1) = y2).
 
             plot <- plot +
-                # add secondary y-axis for sampling distribution counts
-                scale_y_continuous(
-                    name = "Population density",
-                    sec.axis = sec_axis(~ . * sec_axis_factor, name = "Number of samples")) +
-
                 # histograms for sampling distribution(s)
                 geom_bar(
                     aes(
                         x = mean,
-                        y = after_stat(count) / sec_axis_factor,
-                        colour = size %>% factor(labels = unique(size)),
-                        fill = size %>% factor(labels = unique(size)),
+                        # y = after_stat(count) / sec_axis_factor,
+                        y = after_stat(density),
+                        colour = size %>% factor(levels = unique(size)),
+                        fill = size %>% factor(levels = unique(size)),
                         group = size
                     ),
                     data = samples(),
@@ -264,18 +301,15 @@ server <- function(input, output, session) {
 
                 # describe samples in legend
                 scale_colour_discrete(
-                    name = "Distribution of drawn samples",
-                    labels = sampling_counts %>% glue_data("{n} samples of size {size}"),
+                    name = "Observed sampling distributions",
+                    labels = sampling_groups %>% glue_data("{n} samples of size {size}"),
                     aesthetics = c("colour", "fill")
                 )
         }
 
-
         plot
-    })
+    }) %>% bindEvent(population(), samples())
 }
-
-after_stat
 
 # Run the application
 shinyApp(ui = ui, server = server)
