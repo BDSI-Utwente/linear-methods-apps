@@ -5,6 +5,7 @@ library(glue)
 library(Cairo)
 library(devtools)
 library(plotly)
+library(magrittr)
 
 devtools::source_gist("https://gist.github.com/anhtth16/68f2b0d746590273ce2ec5c773dad2a5")
 
@@ -30,7 +31,7 @@ P_VALUE <- list(
   DEFAULT = pt(T_VALUE$DEFAULT, DF$DEFAULT, lower.tail = T_VALUE$DEFAULT <= 0) %>% round(3)
 )
 A_LEVEL <- list(
-  MIN = 0.001,
+  MIN = 0.01,
   MAX = 0.2,
   DEFAULT = 0.05
 )
@@ -47,6 +48,11 @@ ui <- miniPage(
   theme = bslib::bs_theme(version = 4),
   uiOutput("css"),
   withMathJax(),
+  # div(
+  #   textOutput("normal"),
+  #   textOutput("pvalues"),
+  #   textOutput("twosided")
+  # ),
   miniContentPanel(plotOutput("distPlot", height = "100%"),),
   miniButtonBlock(
     div(
@@ -55,13 +61,13 @@ ui <- miniPage(
       sliderInput("df", "Degrees of freedom", DF$MIN, DF$MAX, DF$DEFAULT, width = "100%"),
     ),
 
-    div(
+    conditionalPanel("output.pvalues == 'TRUE'",
       style = "display: flex; flex-flow: row nowrap; flex: auto 1 1; justify-content: space-between; align-items: flex-start;",
       numericInput("t", "\\(t\\)-value", T_VALUE$DEFAULT, step = 0.01, width = "100%"),
       # actionButton("calculate-t", label = NULL, icon = icon("repeat"), title="Calculate t-value from p-value and df", style="margin-top: 2em;")
     ),
 
-    div(
+    conditionalPanel("output.pvalues == 'TRUE'",
       style = "display: flex; flex-flow: row nowrap; flex: auto 1 1; justify-content: space-between; align-items: flex-start;",
       numericInput("p", "\\(p\\)-value", P_VALUE$DEFAULT, min = 0.0001, max = 0.9999, step = 0.001, width = "100%"),
       # actionButton("calculate-p", label = NULL, icon = icon("repeat"), title="Calculate p-value from t-value and df", style="margin-top: 2em;")
@@ -75,15 +81,49 @@ ui <- miniPage(
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
+  #' Reactive for query paramaters
+  #' @param normal turn normal overlay on/off
+  #' @param twosided toggle twosided mode (as opposed to one-sided)
+  #' @param pvalues toggle p/t-values on/off
+  params <- reactive({
+    search_params <- parseQueryString(session$clientData$url_search)
+
+    list(
+      normal = !is.null(search_params$normal),
+      twosided = !is.null(search_params$twosided),
+      pvalues = !is.null(search_params$pvalues)
+    )
+  })
+
+  # Add params back to output object, and make sure they are always updated
+  output$normal <- renderText(params()$normal)
+  outputOptions(output, "normal", suspendWhenHidden = FALSE)
+
+  output$twosided <- renderText(params()$twosided)
+  outputOptions(output, "twosided", suspendWhenHidden = FALSE)
+
+  output$pvalues <- renderText(params()$pvalues)
+  outputOptions(output, "pvalues", suspendWhenHidden = FALSE)
+
   data <- reactive({
+    # build a list of t/z values that we want the graph to cover
     crit_values <- c(
+      # default range (usually -3,3)
       RANGE$MIN,
       RANGE$MAX,
-      qt(A_LEVEL$MIN, input$df) + EXTRA_POINTS_AROUND_CRITICAL_VALUES,
-      qt(A_LEVEL$MIN, input$df, lower.tail = FALSE) + EXTRA_POINTS_AROUND_CRITICAL_VALUES,
-      input$t + EXTRA_POINTS_AROUND_CRITICAL_VALUES
+
+      # cover upper and lower tails
+      qt(A_LEVEL$MIN, input$df),
+      qt(A_LEVEL$MIN, input$df, lower.tail = FALSE)
     )
 
+    # make sure t-value is covered, if given
+    if(params()$pvalues){
+      crit_values <- c(crit_values, input$t)
+    }
+
+    # interpolate extra points between the extremes of our critical values,
+    # round them to avoid floating point errors, then filter out duplicates
     x <- c(
       crit_values,
       seq(min(crit_values), max(crit_values), length.out = PRECISION)
@@ -124,9 +164,13 @@ server <- function(input, output, session) {
 
   on_df_changed <- observe({
     # print("df changed, updating p...")
-    
+
     updating(TRUE)
-    updateNumericInput(session, "p", value = pt(input$t, input$df, lower.tail = input$t <= 0) %>% round(3))
+    p_value <- pt(input$t, input$df, lower.tail = input$t <= 0)
+    if (params()$twosided) {
+      p_value <- p_value * 2
+    }
+    updateNumericInput(session, "p", value = p_value  %>% round(3))
   }, priority = 9) %>% bindEvent(input$df, ignoreInit = TRUE)
 
   on_t_changed <- observe({
@@ -139,9 +183,13 @@ server <- function(input, output, session) {
       # print("manual update, updating p...")
 
       updating(TRUE)
-      updateNumericInput(session, "p", value = pt(input$t, input$df, lower.tail = input$t <= 0) %>% round(3))
+      p_value <- pt(input$t, input$df, lower.tail = input$t <= 0)
+      if (params()$twosided) {
+        p_value <- p_value * 2
+      }
+      updateNumericInput(session, "p", value = p_value  %>% round(3))
     }
-  }, priority = 7) %>% bindEvent(input$t, ignoreInit = TRUE)
+  }, priority = 7) %>% bindEvent(input$t, ignoreInit = FALSE)
 
   on_p_changed <- observe({
     # print("p changed, checking if we should update t")
@@ -153,56 +201,90 @@ server <- function(input, output, session) {
       # print("manual update, updating t...")
 
       updating(TRUE)
-      updateNumericInput(session, "t", value = qt(1 - input$p, input$df) %>% round(3))
+      updateNumericInput(session, "t", value = qt(1 - input$p * if_else(params()$twosided, 0.5, 1), input$df) %>% round(3))
     }
   }, priority = 5) %>% bindEvent(input$p, ignoreInit = TRUE)
 
   output$distPlot <- renderPlot({
-    labels <- c(t = glue("Student's 𝑡({df})", df = input$df), z = "Normal 𝑁(0,1)")
-    if (input$t >= 0){ 
-      data_under_h0 <- data() %>% filter(x >= input$t)
+    if (params()$twosided) {
+      critical_t <- abs(input$t)
+      data_under_h0 <- data() %>% filter(x >= critical_t | x <= -critical_t)
     } else {
-      data_under_h0 <- data() %>% filter(x <= input$t)
+      if (input$t >= 0){
+        data_under_h0 <- data() %>% filter(x >= input$t)
+      } else {
+        data_under_h0 <- data() %>% filter(x <= input$t)
+      }
     }
 
-    ggplot(data(), aes(x = x, y = y)) + 
-      # main distribution lines
-      geom_line(aes(colour = dist, linetype = dist)) + 
+    plot <- ggplot(data(), aes(x = x, y = y)) +
+      # t distribution
+      geom_line(data = data() %>% filter(dist == "t"), colour = "#007bff")
 
-      # vertical line at t
-      geom_segment(x = input$t, xend = input$t, y = 0, yend = dt(input$t, input$df), colour = "#007bff", linewidth = 0.2) + 
+    # add normal (z) overlay if desired
+    if (params()$normal) {
+      plot <- plot +
+        geom_line(data = data() %>% filter(dist == "z"), colour = "grey", linetype = 2)
+    }
 
-      # fill area for P(t) >= T
-      geom_area(data = data_under_h0 %>% filter(dist == "t"), fill = "#007bff", alpha = 0.2) + 
+    # add p/t value(s) if desired
+    if (params()$pvalues) {
+      plot <- plot +
+        # vertical line at t
+        geom_segment(x = input$t, xend = input$t, y = 0, yend = dt(input$t, input$df), colour = "#007bff", linewidth = 0.2) +
+
+        # fill area for P(t) >= T, or P(|t|) >= in the twosided case
+        geom_area(aes(group = x <= 0), data = data_under_h0 %>% filter(dist == "t"), fill = "#007bff", alpha = 0.2)
+
+      # add another line for the twosided case
+      if (params()$twosided) {
+        plot <- plot + geom_segment(x = -input$t, xend = -input$t, y = 0, yend = dt(-input$t, input$df), colour = "#007bff", linewidth = 0.2)
+      }
 
       # add annotations
-      annotate(
-        "text", 
-        x = input$t, 
-        y = dt(input$t, input$df), 
-        label = glue("P(T >= {t}) = {p}", t = input$t, p = input$p),
+      tail_p_value <- pt(input$t, input$df, lower.tail = input$t <= 0)
+      plot <- plot + annotate(
+        "text",
+        x = input$t,
+        y = dt(input$t, input$df),
+        label = glue("P(T >= {t}) = {p}", t = input$t, p = tail_p_value %>% round(3)),
         hjust = ifelse(input$t >= 0, -0.1, 1.1),
         vjust = -0.1
-      ) + 
-
-      # set x axis to be at zero
-      scale_y_continuous(expand = c(0, 0)) +
-
-      # add manual legend
-      scale_colour_manual(
-        guide = NULL,
-        name = "Distribution",
-        values = c("t" = "#007bff", "z" = "grey"),
-        labels = labels
-      ) +
-      scale_linetype_manual(
-        guide = NULL,
-        name = "Distribution",
-        values = c("t" = 1, "z" = 2),
-        labels = labels
       )
+      if (params()$twosided) {
+        plot <- plot + annotate(
+          "text",
+          x = -input$t,
+          y = dt(-input$t, input$df),
+          label = glue("P(T < {t}) = {p}", t = input$t, p = tail_p_value %>% round(3)),
+          hjust = ifelse(-input$t >= 0, -0.1, 1.1),
+          vjust = -0.1
+        )
+      }
+    }
 
+    # set x axis to be at zero
+    plot <- plot +
+      scale_y_continuous(expand = c(0, 0))
+#
+#       # add manual legend
+#       scale_colour_manual(
+#         guide = NULL,
+#         name = "Distribution",
+#         values = c("t" = "#007bff", "z" = "grey"),
+#         labels = labels
+#       ) +
+#       scale_linetype_manual(
+#         guide = NULL,
+#         name = "Distribution",
+#         values = c("t" = 1, "z" = 2),
+#         labels = labels
+#       )
+
+    plot
   }) %>% bindEvent(data())
+
+
 }
 # Run the application
 shinyApp(ui = ui, server = server)
