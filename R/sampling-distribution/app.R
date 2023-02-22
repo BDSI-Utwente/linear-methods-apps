@@ -70,7 +70,7 @@ ui <- miniPage(
             div(
                 numericInput(
                     "sample_count",
-                    "Samples",
+                    "Number of samples",
                     value = 10,
                     min = 1,
                     max = 1000,
@@ -79,7 +79,7 @@ ui <- miniPage(
                 ),
                 numericInput(
                     "sample_size",
-                    "Sample size",
+                    "Sample size \\(n\\)",
                     value = 10,
                     min = 1,
                     max = 1000,
@@ -87,6 +87,10 @@ ui <- miniPage(
                     width = "100%"
                 ),
                 actionButton("draw", "Draw!", width = "100%", style = "margin-top: 2em; margin-left: 0;"),
+                conditionalPanel(
+                    "output.has_samples == 'TRUE'",
+                    actionButton("reset", "Reset", width = "100%", style = "margin-top: 2em; margin-left: 0;")
+                ),
                 style = "display: flex; flex-flow: row nowrap; gap: 0.5em; align-items: flex-start;"
             ),
             style = "flex: 1 1 50%;"
@@ -96,6 +100,21 @@ ui <- miniPage(
 )
 
 server <- function(input, output, session) {
+    params <- reactiveValues()
+    observe({
+        search <- parseQueryString(session$clientData$url_search)
+
+        if(is.null(search$batches)){
+            params$batches <- 2
+        } else {
+            params$batches <- as.integer(search$batches)
+        }
+
+        params$dodge <- !is.null(search$dodge)
+        params$geom <- ifelse(is.null(search$geom), "geom_bar", search$geom)
+    })
+
+    # wrapper to create an appropriate population distribution function
     population <- reactive({
         q <- seq(0, 1, length.out = PRECISION)
 
@@ -220,17 +239,24 @@ server <- function(input, output, session) {
     samples <- reactiveVal({
         tibble(size = numeric(0),
                mean = numeric(0),
+               batch_number = numeric(0),
                .rows = 0)
     })
 
-    # clear samples when population changes
+    # keep track of batch number
+    batch_number <- reactiveVal(0)
+
+    # clear samples when population changes, or reset button was pressed
     onPopulationChanged <- observe({
         samples(tibble(
             size = numeric(0),
             mean = numeric(0),
+            batch_number = numeric(0),
             .rows = 0
         ))
-    }) %>% bindEvent(population())
+
+        batch_number(0)
+    }) %>% bindEvent(population(), input$reset)
 
     # draw samples
     onDraw <- observe({
@@ -239,17 +265,31 @@ server <- function(input, output, session) {
         shinyjs::disable("draw")
 
         # TODO: see if there is a more elegant approach to drawing from a sampling distribution directly.
-        means = replicate(input$sample_count,
-                          random()(input$sample_size) %>% mean())
+        sampling_function <- random()
+        means <- replicate(input$sample_count,
+                          sampling_function(input$sample_size) %>% mean())
 
+        # get batch number if sample size already exists
+        existing_batch <- samples() %>% filter(size == input$sample_size) %>% pull(batch_number) %>% first()
+        if (is.na(existing_batch)) {
+            # increment batch number
+            batch_number(batch_number() + 1)
+            current_batch = batch_number()
+        } else {
+            current_batch = existing_batch
+        }
+
+
+        # add new samples
         samples(samples() %>% bind_rows(tibble(
-            mean = means, size = input$sample_size
+            mean = means, size = input$sample_size, batch_number = current_batch
         )))
 
         # re-enable after we're done
         shinyjs::enable("draw")
 
     }) %>% bindEvent(input$draw)
+
 
     output$distPlot <- renderPlot({
         plot <- ggplot(population()) +
@@ -272,31 +312,55 @@ server <- function(input, output, session) {
 
 
         if (samples() %>% nrow()) {
+            # limit samples to latest x batches
+            data <- samples() %>%
+                mutate(
+                    # invert so that latest == 1
+                    batch_number = max(batch_number) - batch_number + 1,
+                    batch_fade = 1 / batch_number
+                ) %>%
+
+                # only take latest x batches
+                filter(batch_number <= params$batches)
+
+
             # summarize samples for label
-            sampling_groups <- samples() %>% count(size)
+            sampling_groups <- data %>% count(size, batch_fade)
 
             # TODO: try to draw secondary axis for sample counts in observed
             # sampling distributions?
             # I've already wasted a day on this, syncing counts with density so
             # that both the count and relative density remains correct has proven
             # a bitch to figure out (i.e. what f to use so that f(y1) = y2).
+            # dynamic geometry function
+            .geom <- dynGet(params$geom, geom_bar, inherits = TRUE)
 
             plot <- plot +
                 # histograms for sampling distribution(s)
-                geom_bar(
+                .geom(
                     aes(
                         x = mean,
                         # y = after_stat(count) / sec_axis_factor,
                         y = after_stat(density),
                         colour = size %>% factor(levels = unique(size)),
                         fill = size %>% factor(levels = unique(size)),
-                        group = size
+                        group = batch_number,
+                        alpha = batch_fade
                     ),
-                    data = samples(),
-                    alpha = 0.3,
-                    position = "identity",
+                    data = data,
+                    position = if_else(params$dodge, "dodge", "identity"),
                     stat = "bin",
                     bins = 40
+                ) +
+
+                # give sample fading proper boundaries
+                scale_alpha_continuous(
+
+                    # name = "Observed sampling distributions",
+                    # labels = sampling_groups %>% glue_data("{n} samples of size {size}"),
+                    # breaks = sampling_groups$batch_fade,
+                    guide = "none",
+                    range = c(0.4, 0.8)
                 ) +
 
                 # describe samples in legend
@@ -309,6 +373,11 @@ server <- function(input, output, session) {
 
         plot
     }) %>% bindEvent(population(), samples())
+
+    output$has_samples <- renderText({
+        nrow(samples()) >= 1
+    })
+    outputOptions(output, "has_samples", suspendWhenHidden = FALSE)
 }
 
 # Run the application
